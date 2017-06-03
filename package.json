@@ -27,6 +27,5 @@
     "standard": "^10.0.2"
   },
   "dependencies": {
-    "eslint-plugin-import": "^2.3.0"
   }
 }
