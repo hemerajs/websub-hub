@@ -1,0 +1,34 @@
+{
+  "name": "websub-hub",
+  "version": "0.0.0",
+  "description": "WIP - WebSub Hub Server for NodeJs",
+  "main": "lib/index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hemerajs/websub-hub.git"
+  },
+  "author": "Dustin Deus <deusdustin@gmail.com> (http://www.starptech.de)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hemerajs/websub-hub/issues"
+  },
+  "homepage": "https://github.com/hemerajs/websub-hub#readme",
+  "scripts": {
+    "test": "nyc mocha -r \"./test/**/*.js\" -t 5000",
+    "coverage": "npm run test && nyc report --reporter=html",
+    "ci": "nyc mocha -r \"./test/**/*.js\" -t 5000 && nyc report --reporter=text-lcov | coveralls"
+  },
+  "devDependencies": {
+    "code": "4.0.x",
+    "coveralls": "2.13.x",
+    "eslint": "3.19.x",
+    "eslint-config-standard": "10.2.x",
+    "eslint-plugin-import": "2.3.x",
+    "eslint-plugin-node": "5.0.x",
+    "eslint-plugin-promise": "3.5.x",
+    "eslint-plugin-standard": "3.0.x",
+    "nyc": "11.0.x",
+    "mocha": "3.4.x",
+    "mocha-lcov-reporter": "1.3.x"
+  }
+}
