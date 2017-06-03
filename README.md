@@ -7,8 +7,16 @@
 <a href="https://standardjs.com"><img src="https://camo.githubusercontent.com/58fbab8bb63d069c1e4fb3fa37c2899c38ffcd18/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f636f64655f7374796c652d7374616e646172642d627269676874677265656e2e737667" alt="npm version" data-canonical-src="https://img.shields.io/badge/code_style-standard-brightgreen.svg" style="max-width:100%;"></a>
 </p>
 
-# websub-hub
-WIP - WebSub Hub Server for NodeJs
+<p align="center">
+A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
+</p>
 
-# Specification
+- __Node:__ 6.x, 7.x, 8.0
+- __Lead Maintainer:__ [Dustin Deus](https://github.com/StarpTech)
+- __Status:__ In Development
+
+## Specification
 https://w3c.github.io/websub/#bib-RFC6151
+
+## Credits
+Logo by <a href="http://www.flaticon.com/authors/vectors-market" title="Vectors Market">Vectors Market</a> from Flaticon.
