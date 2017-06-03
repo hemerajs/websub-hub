@@ -14,9 +14,9 @@
   },
   "homepage": "https://github.com/hemerajs/websub-hub#readme",
   "scripts": {
-    "test": "nyc mocha -r \"./test/**/*.js\" -t 5000",
+    "test": "nyc mocha",
     "coverage": "npm run test && nyc report --reporter=html",
-    "ci": "nyc mocha -r \"./test/**/*.js\" -t 5000 && nyc report --reporter=text-lcov | coveralls"
+    "ci": "nyc mocha && nyc report --reporter=text-lcov | coveralls"
   },
   "devDependencies": {
     "code": "4.0.x",
