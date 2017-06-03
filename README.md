@@ -1,5 +1,5 @@
 <p align="center">
-<img src="https://github.com/StarpTech/websub-hub/raw/master/media/logo.png" alt="WebSub-Hub" style="max-width:100%;">
+<img src="https://github.com/hemerajs/websub-hub/blob/master/media/logo.png?raw=true" alt="WebSub-Hub" style="max-width:100%;">
 </p>
 
 [![npm version](https://badge.fury.io/js/websub-hub.svg)](https://badge.fury.io/js/websub-hub)
