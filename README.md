@@ -2,8 +2,10 @@
 <img src="https://github.com/hemerajs/websub-hub/blob/master/media/logo.png?raw=true" alt="WebSub-Hub" style="max-width:100%;">
 </p>
 
-[![npm version](https://badge.fury.io/js/websub-hub.svg)](https://badge.fury.io/js/websub-hub)
-[![npm version](https://img.shields.io/badge/code_style-standard-brightgreen.svg)](https://standardjs.com)
+<p align="center">
+<a href="https://badge.fury.io/js/websub-hub"><img src="https://camo.githubusercontent.com/48772c29d0514fc99d36e0a0d918c0d8298f9311/68747470733a2f2f62616467652e667572792e696f2f6a732f7765627375622d6875622e737667" alt="npm version" data-canonical-src="https://badge.fury.io/js/websub-hub.svg" style="max-width:100%;"></a>
+<a href="https://standardjs.com"><img src="https://camo.githubusercontent.com/58fbab8bb63d069c1e4fb3fa37c2899c38ffcd18/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f636f64655f7374796c652d7374616e646172642d627269676874677265656e2e737667" alt="npm version" data-canonical-src="https://img.shields.io/badge/code_style-standard-brightgreen.svg" style="max-width:100%;"></a>
+</p>
 
 # websub-hub
 WIP - WebSub Hub Server for NodeJs
