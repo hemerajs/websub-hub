@@ -2,7 +2,7 @@
   "name": "websub-hub",
   "version": "0.0.2",
   "description": "WIP - WebSub Hub Server for NodeJs",
-  "main": "lib/index.js",
+  "main": "websub-hub.js",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hemerajs/websub-hub.git"
@@ -26,5 +26,7 @@
     "nyc": "11.0.x",
     "standard": "^10.0.2"
   },
-  "dependencies": {}
+  "dependencies": {
+    "fastify": "^0.21.0"
+  }
 }
