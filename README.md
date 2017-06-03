@@ -17,6 +17,3 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 
 ## Specification
 https://w3c.github.io/websub/#bib-RFC6151
-
-## Credits
-Logo by <a href="http://www.flaticon.com/authors/vectors-market" title="Vectors Market">Vectors Market</a> from Flaticon.
