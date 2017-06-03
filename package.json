@@ -14,21 +14,19 @@
   },
   "homepage": "https://github.com/hemerajs/websub-hub#readme",
   "scripts": {
-    "test": "nyc mocha",
+    "test": "standard && nyc mocha",
     "coverage": "npm run test && nyc report --reporter=html",
     "ci": "nyc mocha && nyc report --reporter=text-lcov | coveralls"
   },
   "devDependencies": {
     "code": "4.0.x",
     "coveralls": "2.13.x",
-    "eslint": "3.19.x",
-    "eslint-config-standard": "10.2.x",
-    "eslint-plugin-import": "2.3.x",
-    "eslint-plugin-node": "5.0.x",
-    "eslint-plugin-promise": "3.5.x",
-    "eslint-plugin-standard": "3.0.x",
-    "nyc": "11.0.x",
     "mocha": "3.4.x",
-    "mocha-lcov-reporter": "1.3.x"
+    "mocha-lcov-reporter": "1.3.x",
+    "nyc": "11.0.x",
+    "standard": "^10.0.2"
+  },
+  "dependencies": {
+    "eslint-plugin-import": "^2.3.0"
   }
 }
