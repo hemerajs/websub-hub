@@ -27,6 +27,7 @@
     "standard": "^10.0.2"
   },
   "dependencies": {
-    "fastify": "^0.21.0"
+    "fastify": "^0.21.0",
+    "request": "^2.81.0"
   }
 }
