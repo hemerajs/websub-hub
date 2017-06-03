@@ -24,7 +24,7 @@ class Server {
   }
   _handleSubscriptionRequest (err, req, res) {}
   _registerHandlers () {
-    this.server.post('/sub', Schemas.postSubscription, this._handleSubscription)
+    this.server.post('/sub', Schemas.subscriptionRequest, this._handleSubscription)
   }
   listen () {
     this.server.listen.apply(this.server, arguments)
