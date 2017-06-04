@@ -17,3 +17,10 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 
 ## Specification
 https://w3c.github.io/websub/#bib-RFC6151
+
+## Installation
+```
+$ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
+$ npm i -g webpub-server
+$ webpub
+```
