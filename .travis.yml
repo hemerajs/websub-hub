@@ -16,10 +16,6 @@ addons:
       - g++-4.8
       - gcc-4.8
 
-before_install:
-  - sudo apt-get update
-  - sudo apt-get install libzmq3-dev
-
 notifications:
   email:
     on_success: never
