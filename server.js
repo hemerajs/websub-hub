@@ -26,6 +26,9 @@ function Server (options) {
 
   this.options = options || {}
   this.server = Fastify(Object.assign(this.options, defaultOptions))
+  this.httpClient = Axios.create({
+    timeout: 1000
+  })
   this.hyperid = Hyperid()
   this._addContentTypeParser()
   this._createDbConnection()
@@ -81,7 +84,7 @@ Server.prototype._addContentTypeParser = function () {
   * @memberof Server
   */
 Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, cb) {
-  return Axios.post(callbackUrl, {
+  return this.httpClient.post(callbackUrl, {
     'hub.topic': topic,
     'hub.mode': mode,
     'hub.challenge': challenge
@@ -91,9 +94,8 @@ Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, 
         return this.intentStates.ACCEPTED
       } else if (response.status === 404) {
         return this.intentStates.DECLINED
-      } else {
-        return this.intentStates.UNKNOWN
       }
+      return this.intentStates.UNKNOWN
     })
     .catch(() => {
       return this.intentStates.UNKNOWN
@@ -109,7 +111,7 @@ Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, 
  * @memberof Server
  */
 Server.prototype._discover = function (url) {
-  return Axios.get(url)
+  return this.httpClient.get(url)
 }
 
 /**
@@ -182,6 +184,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
         if (duplicateRes) {
           return Promise.reject(Boom.badRequest('Subscriber was already registered'))
         }
+        return Promise.resolve()
       })
       .then(() => {
         return this._createSubscription({
@@ -192,9 +195,8 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
           secret: secret
         })
       })
-      .catch((err) => {
-        return reply.code(err.output.statusCode).send(err)
-      })
+      .then(() => reply.code(200).send())
+      .catch((err) => reply.code(err.output.statusCode).send(err))
   } else {
     this._unsubscribe(topic, callbackUrl)
       .then(() => {
@@ -239,7 +241,7 @@ Server.prototype._isDuplicateSubscription = function (topic, callbackUrl, cb) {
   return this.subscriptionCollection.findOne({
     topic: topic,
     callbackUrl: callbackUrl
-  }, (result) => {
+  }).then((result) => {
     return result !== null
   }).catch(() => {
     return Promise.reject(Boom.notFound('Susbcription could not be found'))
@@ -254,7 +256,7 @@ Server.prototype._isDuplicateSubscription = function (topic, callbackUrl, cb) {
  * @memberof Server
  */
 Server.prototype._createSubscription = function (subscription, cb) {
-  return this.subscriptionCollection.create({
+  return this.subscriptionCollection.insertOne({
     callbackUrl: subscription.callbackUrl,
     mode: subscription.mode,
     topic: subscription.topic,

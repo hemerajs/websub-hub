@@ -28,19 +28,21 @@
     "globals": []
   },
   "devDependencies": {
-    "code": "^4.0.0",
-    "mocha": "^3.4.2",
-    "nyc": "^11.0.2",
-    "snazzy": "^7.0.0",
-    "standard": "^10.0.2"
+    "code": "4.0.0",
+    "mocha": "3.4.2",
+    "mongo-in-memory": "0.0.5",
+    "nock": "9.0.13",
+    "nyc": "11.0.2",
+    "snazzy": "7.0.0",
+    "standard": "10.0.2"
   },
   "dependencies": {
-    "axios": "^0.16.2",
-    "body": "^5.1.0",
-    "boom": "^5.1.0",
-    "es6-promisify": "^5.0.0",
-    "fastify": "^0.21.0",
-    "fastify-mongodb": "^0.1.0",
-    "hyperid": "^1.2.0"
+    "axios": "0.16.2",
+    "body": "5.1.0",
+    "boom": "5.1.0",
+    "es6-promisify": "5.0.0",
+    "fastify": "0.21.0",
+    "fastify-mongodb": "0.1.0",
+    "hyperid": "1.2.0"
   }
 }
