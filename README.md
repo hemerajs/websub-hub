@@ -12,7 +12,7 @@
 A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 </p>
 
-- __Node:__ 6.x, 7.x, 8.0
+- __Node:__ 7.x, 8.0
 - __Lead Maintainer:__ [Dustin Deus](https://github.com/StarpTech)
 
 ## Specification
