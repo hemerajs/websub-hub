@@ -13,7 +13,7 @@ describe('Basic Subscription', function () {
   let mongoInMemory
 
   // Start up our own nats-server
-  before(function () {
+  before(function (done) {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
@@ -21,8 +21,7 @@ describe('Basic Subscription', function () {
           url: mongoInMemory.getMongouri('hub')
         }
       })
-      hub.listen(PORT).then((done) => {
-        mongoInMemory = new MongoInMemory()
+      hub.listen(PORT).then(() => {
         mongoInMemory.start(() => {
           done()
         })
