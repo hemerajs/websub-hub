@@ -35,12 +35,12 @@
     "standard": "^10.0.2"
   },
   "dependencies": {
-    "async": "^2.4.1",
+    "axios": "^0.16.2",
     "body": "^5.1.0",
     "boom": "^5.1.0",
+    "es6-promisify": "^5.0.0",
     "fastify": "^0.21.0",
     "fastify-mongodb": "^0.1.0",
-    "hyperid": "^1.2.0",
-    "request": "^2.81.0"
+    "hyperid": "^1.2.0"
   }
 }

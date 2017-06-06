@@ -10,14 +10,14 @@ describe('Basic', function () {
   let hub
 
   // Start up our own nats-server
-  before(function (done) {
+  before(function () {
     hub = new Hub()
-    hub.listen(PORT, done)
+    return hub.listen(PORT)
   })
 
   // Shutdown our server after we are done
-  after(function (done) {
-    hub.close(done)
+  after(function () {
+    return hub.close()
   })
 
   it('Should not create subscription because intent could not be verified', function (done) {
