@@ -16,7 +16,7 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 - __Lead Maintainer:__ [Dustin Deus](https://github.com/StarpTech)
 
 ## Specification
-https://w3c.github.io/websub/#bib-RFC6151
+https://w3c.github.io/websub/
 
 ## Installation
 ```
