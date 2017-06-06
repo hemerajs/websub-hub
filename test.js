@@ -40,6 +40,12 @@ describe('Basic Subscription', function () {
   })
 
   it('Should respond with 403 because intent could not be verified', function (done) {
+    const callbackUrl = 'http://127.0.0.1:3001'
+
+    Nock(callbackUrl)
+    .post('/')
+    .reply(500)
+
     Axios.default.post(`http://localhost:${PORT}/subscribe`, {
       'hub.callback': 'http://127.0.0.1:3001',
       'hub.mode': 'subscribe',
