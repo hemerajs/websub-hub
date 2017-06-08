@@ -15,6 +15,7 @@ const EventEmitter = require('events')
 
 const defaultOptions = {
   name: 'hub',
+  requestTimeout: 1000,
   logLevel: 'info',
   fastify: {
     logger: {
@@ -32,7 +33,7 @@ function Server (options) {
   this.options = Hoek.applyToDefaults(defaultOptions, options || {})
   this.server = Fastify(this.options)
   this.httpClient = Axios.create({
-    timeout: 1000
+    timeout: this.options.requestTimeout
   })
   this.hyperid = Hyperid()
   this._addContentTypeParser()

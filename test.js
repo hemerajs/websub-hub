@@ -3,9 +3,9 @@
 const Code = require('code')
 const expect = Code.expect
 const Axios = require('axios')
-const Nock = require('nock')
 const Hub = require('./server')
 const MongoInMemory = require('mongo-in-memory')
+const MockAdapter = require('axios-mock-adapter')
 
 describe('Basic Subscription', function () {
   const PORT = 3000
@@ -18,6 +18,7 @@ describe('Basic Subscription', function () {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
+        requestTimeout: 500,
         mongo: {
           url: mongoInMemory.getMongouri('hub')
         }
@@ -40,12 +41,6 @@ describe('Basic Subscription', function () {
   })
 
   it('Should respond with 403 because intent could not be verified', function () {
-    const callbackUrl = 'http://127.0.0.1:3001'
-
-    Nock(callbackUrl)
-    .post('/')
-    .reply(500)
-
     return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
       'hub.callback': 'http://127.0.0.1:3001',
       'hub.mode': 'subscribe',
@@ -61,10 +56,10 @@ describe('Basic Subscription', function () {
   it('Should respond with 200 because intent could be verified', function () {
     const callbackUrl = 'http://127.0.0.1:3001'
 
-    Nock(callbackUrl)
-    .post('/')
-    .reply(200, function (uri, requestBody) {
-      return requestBody
+    const mock = new MockAdapter(hub.httpClient)
+
+    mock.onPost(callbackUrl).reply(function (config) {
+      return [200, config.data]
     })
 
     return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
@@ -73,6 +68,7 @@ describe('Basic Subscription', function () {
       'hub.topic': topic + '/feeds'
     }).then((response) => {
       expect(response.status).to.be.equals(200)
+      mock.restore()
     })
   })
 })
@@ -121,15 +117,13 @@ describe('Basic Publishing', function () {
   it('Should not be able to publish to topic because topic endpoint does not respond with 2xx Status code', function () {
     const callbackUrl = 'http://127.0.0.1:3001'
 
-    Nock(callbackUrl)
-    .post('/')
-    .reply(200, function (uri, requestBody) {
-      return requestBody
+    const mock = new MockAdapter(hub.httpClient)
+
+    mock.onPost(callbackUrl).reply(function (config) {
+      return [200, config.data]
     })
 
-    Nock(topic)
-    .get('/feeds')
-    .reply(500)
+    mock.onGet(topic + '/feeds').reply(500)
 
     // Create subscriptiona and topic
     return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
@@ -145,6 +139,7 @@ describe('Basic Publishing', function () {
         'hub.url': topic + '/feeds'
       }).catch((error) => {
         expect(error.response.status).to.be.equals(503)
+        mock.restore()
       })
     })
   })
@@ -152,33 +147,29 @@ describe('Basic Publishing', function () {
   it('Should be able to publish to topic', function () {
     const callbackUrl = 'http://127.0.0.1:3002'
 
-    Nock(callbackUrl)
-    .post('/')
-    .reply(200, function (uri, requestBody) {
-      return requestBody
+    const mock = new MockAdapter(hub.httpClient)
+
+    mock.onPost(callbackUrl).reply(function (config) {
+      return [200, config.data]
     })
 
-    Nock(topic)
-    .get('/feeds')
-    .reply(200, function (uri, requestBody) {
-      return {
-        'version': 'https://jsonfeed.org/version/1',
-        'title': 'My Example Feed',
-        'home_page_url': 'https://example.org/',
-        'feed_url': 'https://example.org/feed.json',
-        'items': [
-          {
-            'id': '2',
-            'content_text': 'This is a second item.',
-            'url': 'https://example.org/second-item'
-          },
-          {
-            'id': '1',
-            'content_html': '<p>Hello, world!</p>',
-            'url': 'https://example.org/initial-post'
-          }
-        ]
-      }
+    mock.onGet(topic + '/feeds').reply(200, {
+      'version': 'https://jsonfeed.org/version/1',
+      'title': 'My Example Feed',
+      'home_page_url': 'https://example.org/',
+      'feed_url': 'https://example.org/feed.json',
+      'items': [
+        {
+          'id': '2',
+          'content_text': 'This is a second item.',
+          'url': 'https://example.org/second-item'
+        },
+        {
+          'id': '1',
+          'content_html': '<p>Hello, world!</p>',
+          'url': 'https://example.org/initial-post'
+        }
+      ]
     })
 
     // Create subscriptiona and topic
@@ -195,6 +186,7 @@ describe('Basic Publishing', function () {
         'hub.url': topic + '/feeds'
       }).then((response) => {
         expect(response.status).to.be.equals(200)
+        mock.restore()
       })
     })
   })
