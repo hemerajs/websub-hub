@@ -7,10 +7,15 @@ const Axios = require('axios')
 const Hyperid = require('hyperid')
 const Boom = require('boom')
 const Util = require('util')
+const Hoek = require('hoek')
+const Pino = require('pino')
+const Serializer = require('./lib/serializer')
 const Promisify = require('es6-promisify')
 const EventEmitter = require('events')
 
 const defaultOptions = {
+  name: 'hub',
+  logLevel: 'info',
   fastify: {
     logger: {
       level: 'info'
@@ -24,8 +29,8 @@ const defaultOptions = {
 function Server (options) {
   EventEmitter.call(this)
 
-  this.options = options || {}
-  this.server = Fastify(Object.assign(this.options, defaultOptions))
+  this.options = Hoek.applyToDefaults(defaultOptions, options || {})
+  this.server = Fastify(this.options)
   this.httpClient = Axios.create({
     timeout: 1000
   })
@@ -36,11 +41,19 @@ function Server (options) {
   this.modes = { SUBSCRIBE: 'subscribe', UNSUBSRIBE: 'unsubscribe' }
   this._registerHandlers()
 
+  const pretty = Pino.pretty()
+  pretty.pipe(process.stdout)
+
+  this.log = Pino({
+    name: this.options.name,
+    safe: true, // avoid error caused by circular references
+    serializers: Serializer,
+    level: this.options.logLevel
+  }, pretty)
+
   if (!(this instanceof Server)) {
     return new Server(options)
   }
-
-  this.emit('dedede')
 }
 
 Util.inherits(Server, EventEmitter)
@@ -142,24 +155,40 @@ Server.prototype._checkInRSSFeed = function () {}
  * @memberof Server
  */
 Server.prototype._checkInATOMFeed = function () {}
-/**
- *
- *
- * @param {any} req
- * @param {any} res
- *
- * @memberof Server
- */
-Server.prototype._handlePublishingRequest = function (req, res) {}
 
-/**
-   *
-   *
-   * @param {any} req
-   * @param {any} res
-   *
-   * @memberof Server
-   */
+Server.prototype._handlePublishingRequest = function (req, reply) {}
+
+Server.prototype._handlePublishRequest = function (req, reply) {
+  const topicUrl = req.body['hub.url']
+
+  const { db } = this.server.mongo
+  this.topicCollection = db.collection('topics')
+  this.topicCollection.findOne({
+    topic: topicUrl
+  })
+    .then((topic) => {
+      if (topic) {
+        return this._fetchTopicContent(topicUrl)
+      }
+      return Promise.reject(Boom.notFound('Topic could not be found'))
+    })
+    .then((content) => {
+      reply.code(200).send()
+    })
+    .catch((err) => {
+      this.log.error({ httpError: err }, 'Could not handle publishing request')
+      reply.code(err.output.statusCode).send(err)
+    })
+}
+
+Server.prototype._fetchTopicContent = function (topic) {
+  return this.httpClient.get(topic).then((response) => {
+  })
+    .catch((err) => {
+      return Promise.reject(Boom.wrap(err, 503, 'Topic endpoint return an invalid answer'))
+    })
+}
+
 Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const callbackUrl = req.body['hub.callback']
   const mode = req.body['hub.mode']
@@ -169,54 +198,41 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
 
   const { db } = this.server.mongo
   this.subscriptionCollection = db.collection('subscriptions')
+  this.topicCollection = db.collection('topics')
 
   if (mode === this.modes.SUBSCRIBE) {
     this._verifyIntent(callbackUrl, mode, topic, this.hyperid()).then((intent) => {
       if (intent === this.intentStates.ACCEPTED) {
-        return this._isDuplicateSubscription(topic)
+        return this._createTopic(topic).then(() => {
+          return this._createSubscription({
+            callbackUrl,
+            mode,
+            topic,
+            leaseSeconds,
+            secret: secret
+          })
+        })
       } else if (intent === this.intentStates.DECLINED) {
         return Promise.reject(Boom.forbidden('Subscriber has declined'))
       } else if (intent === this.intentStates.UNKNOWN) {
         return Promise.reject(Boom.forbidden('Subscriber has return an invalid answer'))
       }
     })
-      .then((duplicateRes) => {
-        if (duplicateRes) {
-          return Promise.reject(Boom.badRequest('Subscriber was already registered'))
-        }
-        return Promise.resolve()
-      })
-      .then(() => {
-        return this._createSubscription({
-          callbackUrl,
-          mode,
-          topic,
-          leaseSeconds,
-          secret: secret
-        })
-      })
       .then(() => reply.code(200).send())
-      .catch((err) => reply.code(err.output.statusCode).send(err))
+      .catch((err) => {
+        this.log.error({ httpError: err }, 'Could not handle subscription request')
+        reply.code(err.output.statusCode).send(err)
+      })
   } else {
     this._unsubscribe(topic, callbackUrl)
-      .then(() => {
-        reply.code(200).send()
-      })
-      .catch(() => {
-        reply.code(400).send()
+      .then(() => reply.code(200).send())
+      .catch((err) => {
+        this.log.error({ httpError: err }, 'Could not handle unsubscription request')
+        reply.code(err.output.statusCode).send(err)
       })
   }
 }
 
-/**
- *
- *
- * @param {any} topic
- * @param {any} callbackUrl
- * @param {any} cb
- *
- * @memberof Server
- */
 Server.prototype._unsubscribe = function (topic, callbackUrl, cb) {
   return this.subscriptionCollection.findOneAndDelete({
     topic: topic,
@@ -224,76 +240,71 @@ Server.prototype._unsubscribe = function (topic, callbackUrl, cb) {
   }).then((result) => {
     return result.value
   })
-    .catch(() => {
-      return Promise.reject(Boom.badImplementation('Subscription could not be deleted'))
+    .catch((err) => {
+      return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be deleted'))
     })
 }
 
-/**
- *
- *
- * @param {any} topic
- * @param {any} cb
- *
- * @memberof Server
- */
-Server.prototype._isDuplicateSubscription = function (topic, callbackUrl, cb) {
+Server.prototype._isDuplicateSubscription = function (topic, callbackUrl) {
   return this.subscriptionCollection.findOne({
     topic: topic,
     callbackUrl: callbackUrl
   }).then((result) => {
     return result !== null
-  }).catch(() => {
-    return Promise.reject(Boom.notFound('Susbcription could not be found'))
-  })
-}
-/**
- *
- *
- * @param {any} subscription
- * @param {any} cb
- *
- * @memberof Server
- */
-Server.prototype._createSubscription = function (subscription, cb) {
-  return this.subscriptionCollection.insertOne({
-    callbackUrl: subscription.callbackUrl,
-    mode: subscription.mode,
-    topic: subscription.topic,
-    lease_seconds: subscription.leaseSeconds,
-    secret: subscription.secret
-  }).catch(() => {
-    return Promise.reject(Boom.badImplementation('Subscription could not be created'))
+  }).catch((err) => {
+    return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be fetched'))
   })
 }
 
-/**
- *
- *
- *
- * @memberof Server
- */
+Server.prototype._isDuplicateTopic = function (topic, cb) {
+  return this.topicCollection.findOne({
+    topic: topic
+  }).then((result) => {
+    return result !== null
+  }).catch((err) => {
+    return Promise.reject(Boom.wrap(err, 500, 'Topic could not be fetched'))
+  })
+}
+
+Server.prototype._createTopic = function (topic) {
+  return this._isDuplicateTopic(topic).then((isDuplicate) => {
+    if (isDuplicate === false) {
+      return this.topicCollection.insertOne({
+        topic: topic
+      }).catch((err) => {
+        return Promise.reject(Boom.wrap(err, 500, 'Topic could not be created'))
+      })
+    }
+  })
+}
+
+Server.prototype._createSubscription = function (subscription, cb) {
+  return this._isDuplicateSubscription(subscription.topic, subscription.callbackUrl).then((isDuplicate) => {
+    if (isDuplicate === false) {
+      return this.subscriptionCollection.insertOne({
+        callbackUrl: subscription.callbackUrl,
+        mode: subscription.mode,
+        topic: subscription.topic,
+        lease_seconds: subscription.leaseSeconds,
+        secret: subscription.secret
+      }).catch((err) => {
+        return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be created'))
+      })
+    } else {
+      return Promise.reject(Boom.forbidden('Subscriber is already subscribed'))
+    }
+  })
+}
+
 Server.prototype._registerHandlers = function () {
   this.server.post('/subscribe', Schemas.subscriptionRequest, (req, resp) => this._handleSubscriptionRequest(req, resp))
-  this.server.post('/publisher/discover', Schemas.publishingRequest, (req, resp) => this._handlePublishingRequest(req, resp))
+  this.server.post('/publish', Schemas.publishingRequest, (req, resp) => this._handlePublishRequest(req, resp))
 }
 
-/**
- *
- *
- *
- * @memberof Server
- */
 Server.prototype.listen = function (opt) {
   return Promisify(this.server.listen, { thisArg: this.server })(opt)
 }
 
-/**
- *
- *
- *
- * @memberof Server
- */
 Server.prototype.close = function (cb) {
   return Promisify(this.server.close, { thisArg: this.server })()
 }
