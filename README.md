@@ -27,7 +27,7 @@ $ webpub
 ```
 ## Getting started
 
-- Your `callbackUrl` endpoint should return the `hub.challenge` with 2xx to verify the subscription request.
+- Your `callbackUrl` endpoint should return the `hub.challenge` with 2xx statusCode to verify the subscription request.
 - The topic represents the feed you want to subscribe.
 
 ## Subscribe
