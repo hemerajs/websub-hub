@@ -31,7 +31,7 @@ https://w3c.github.io/websub/
 ```
 $ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
 $ npm i -g webpub-server
-$ webpub
+$ webpubhub
 ```
 ## Getting started
 
