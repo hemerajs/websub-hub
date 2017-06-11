@@ -31,7 +31,7 @@ $ webpub
 - The topic represents the feed you want to subscribe.
 
 ## Subscribe
-As soon as you want to subscribe you can initiate a unsubscribe request. The subscriber has to verify that action as mentioned above.
+As soon as you want to subscribe you can initiate a subscription request. The subscriber has to verify that action as mentioned above.
 
 ```js
 var request = require("request")
@@ -55,7 +55,7 @@ request(options, function (error, response, body) {
 ```
 ## Unubscribe
 
-As soon as you want to unsubscribe you can initiate a unsubscribe request. The subscriber has to verify that action as mentioned above. 
+As soon as you want to unsubscribe you can initiate a unsubscription request. The subscriber has to verify that action as mentioned above. 
 
 ```js
 var request = require("request")
@@ -80,7 +80,7 @@ request(options, function (error, response, body) {
 
 ## Publish
 
-As soon as you want to notify about updates you can initiate a publish request to distribute your updates across all subscribers.
+As soon as you want to notify about updates you can initiate a publishing request to distribute your content across all subscribers.
 
 ```js
 var request = require("request")
@@ -102,6 +102,11 @@ request(options, function (error, response, body) {
 
 ```
 
+## TODO
+- Content distribution
+  - Reply at failure
+  - Content Type
+- Discovery
 
 ## Test
 ```
