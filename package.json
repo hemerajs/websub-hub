@@ -14,7 +14,7 @@
   },
   "homepage": "https://github.com/hemerajs/websub-hub#readme",
   "scripts": {
-    "test": "nyc mocha \"test.js\" -t 5000 --full-trace"
+    "test": "nyc mocha -t 5000 --full-trace"
   },
   "bin": {
     "websubhub": "./lib/bin.js"
