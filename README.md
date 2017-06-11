@@ -48,7 +48,7 @@ curl -X POST \
   -H 'content-type: application/x-www-form-urlencoded' \
   -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=subscribe'
 ```
-## Unubscribe
+## Unsubscribe
 
 As soon as you want to unsubscribe from a topic you can initiate a unsubscription request. The subscriber has to verify that action as mentioned above. 
 
