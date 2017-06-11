@@ -308,7 +308,7 @@ describe('Basic Publishing', function () {
   })
 })
 
-describe('Aurthenticated Content Distribution', function () {
+describe('Authenticated Content Distribution', function () {
   const PORT = 3000
   let hub
   let mongoInMemory
@@ -416,8 +416,6 @@ describe('Aurthenticated Content Distribution', function () {
       if (Crypto.createHmac('sha256', 'differentKey').update(config.data).digest('hex') !== signature) {
         return [401]
       }
-
-      return [200]
     })
 
     mock.onGet(topic + '/feeds').reply(200, {

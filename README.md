@@ -25,6 +25,83 @@ $ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
 $ npm i -g webpub-server
 $ webpub
 ```
+## Getting started
+
+- You callbackUrl endpoint should return the `hub.challenge` with 2xx to verify the subscription request.
+- The topic represents the feed you want to subscribe.
+
+## Subscribe
+As soon as you want to subscribe you can initiate a unsubscribe request. The subscriber has to verify that action as mentioned above.
+
+```js
+var request = require("request")
+
+var options = { method: 'POST',
+  url: 'http://localhost:3000/subscribe',
+  headers: 
+   { 'cache-control': 'no-cache',
+     'content-type': 'application/x-www-form-urlencoded' },
+  form: 
+   { 'hub.topic': 'http://myblog.de/feeds',
+     'hub.callback': 'http://127.0.0.1:5000',
+     'hub.mode': 'subscribe' } }
+
+request(options, function (error, response, body) {
+  if (error) throw new Error(error)
+
+  console.log(body)
+});
+
+```
+## Unubscribe
+
+As soon as you want to unsubscribe you can initiate a unsubscribe request. The subscriber has to verify that action as mentioned above. 
+
+```js
+var request = require("request")
+
+var options = { method: 'POST',
+  url: 'http://localhost:3000/unsubscribe',
+  headers: 
+   { 'cache-control': 'no-cache',
+     'content-type': 'application/x-www-form-urlencoded' },
+  form: 
+   { 'hub.topic': 'http://myblog.de/feeds',
+     'hub.callback': 'http://127.0.0.1:5000',
+     'hub.mode': 'unsubscribe' } }
+
+request(options, function (error, response, body) {
+  if (error) throw new Error(error)
+
+  console.log(body)
+});
+
+```
+
+## Publish
+
+As soon as you want to notify about updates you can initiate a publish request to distribute your updates across all subscribers.
+
+```js
+var request = require("request")
+
+var options = { method: 'POST',
+  url: 'http://localhost:3000/publish',
+  headers: 
+   { 'cache-control': 'no-cache',
+     'content-type': 'application/x-www-form-urlencoded' },
+  form: 
+   { 'hub.url': 'http://myblog.de/feeds',
+     'hub.mode': 'publish' } }
+
+request(options, function (error, response, body) {
+  if (error) throw new Error(error)
+
+  console.log(body)
+});
+
+```
+
 
 ## Test
 ```
