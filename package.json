@@ -16,6 +16,12 @@
   "scripts": {
     "test": "nyc mocha \"test.js\" -t 5000 --full-trace"
   },
+  "bin": {
+    "websubhub": "./lib/bin.js"
+  },
+   "engines": {
+    "node": ">=6"
+  },
   "standard": {
     "ignore": [
       "**/node_modules/"
