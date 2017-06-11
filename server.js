@@ -12,15 +12,20 @@ const Pino = require('pino')
 const Serializer = require('./lib/serializer')
 const Promisify = require('es6-promisify')
 const EventEmitter = require('events')
+const Crypto = require('crypto')
 
 const defaultOptions = {
   name: 'hub',
   requestTimeout: 1000,
   logLevel: 'info',
+  hubUrl: 'http://127.0.0.1:3000',
   fastify: {
     logger: {
       level: 'info'
     }
+  },
+  server: {
+    port: 3000
   },
   mongo: {
     url: 'mongodb://localhost:27017/hub'
@@ -104,8 +109,11 @@ Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, 
     'hub.challenge': challenge
   })
     .then((response) => {
-      if (response.status === 200 && response.data['hub.challenge'] === challenge) {
-        return this.intentStates.ACCEPTED
+      if (response.status >= 200 && response.status < 300) {
+        if (response.data['hub.challenge'] === challenge) {
+          return this.intentStates.ACCEPTED
+        }
+        return this.intentStates.DECLINED
       } else if (response.status === 404) {
         return this.intentStates.DECLINED
       }
@@ -117,61 +125,54 @@ Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, 
 }
 
 /**
- * When perfoming discovery, subscribers must implement all three discovery mechanisms in the following order, stopping at the first match:
- * 1. Issue a GET or HEAD request to retrieve the topic URL. Subscribers must check for HTTP Link headers first.
- * 2. In the absence of HTTP Link headers, and if the topic is an XML based feed or an HTML page, subscribers must check for embedded link elements.
- * 3. In the absence of both HTTP Link headers and embedded link elements, subscribers must look in the Host-Meta Well-Known URI [RFC6415] /.well-known/host-meta for the <Link> element with rel="hub".
- * However, please note that this mechanism is currently At Risk and may be deprecated.
- * @memberof Server
+ * The response body from the subscriber must be ignored by the hub.
+ * Hubs should retry notifications up to self-imposed limits on the number of times and the overall time period to retry.
+ * When the failing delivery exceeds the hub's limits, the hub terminates the subscription.
+ *
+ * https://w3c.github.io/websub/#h-content-distribution
  */
-Server.prototype._discover = function (url) {
-  return this.httpClient.get(url)
+Server.prototype._distributeContent = function (subscriptions, content) {
+  const requests = []
+  for (var index = 0; index < subscriptions.length; index++) {
+    const sub = subscriptions[index]
+    const headers = {}
+    // The request must include at least one Link Header
+    headers['Link'] = `<${sub.topic}>; rel="self", <${this.options.hubUrl}>; rel="hub"`
+    // must send a X-Hub-Signature header if the subscription was made with a hub.secret
+    if (sub.secret) {
+      headers['X-Hub-Signature'] = Crypto.createHmac('sha256', sub.secret).update(JSON.stringify(content)).digest('hex')
+    }
+    const request = this.httpClient({
+      method: 'post',
+      headers,
+      url: sub.callbackUrl,
+      data: content
+    })
+    .then((response) => {
+      // Ignore http errors
+      this.log.debug('Subscription ' + sub._id + ' respond with ' + response.status)
+    }).catch((error) => {
+      const err = Boom.wrap(error, error.response.status, 'Content could not be send')
+      this.log.error({ httpError: err }, 'Content distribution to ' + error.response.config.url)
+    })
+    requests.push(request)
+  }
+  return Axios.all(requests)
 }
-
-/**
- * Link Headers [RFC5988]: the publisher should include at least one Link Header [RFC5988] with rel=hub (a hub link header) as well as exactly one Link Header [RFC5988] with rel=self (the self link header)
- *
- * Example: https://documentation.superfeedr.com/publishers.html
- *
- * @memberof Server
- */
-Server.prototype._checkInLinkHeaders = function () {}
-/**
- * If the topic is an XML based feed, publishers should use embedded link elements as described in Appendix B of Web Linking [RFC5988].
- * Similarly, for HTML pages, publishers should use embedded link elements as described in Appendix A of Web Linking [RFC5988].
- * However, for HTML, these <link> elements must be only present in the <head> section of the HTML document. (Note: The restriction on limiting <link> to the <head> is At Risk.)
- *
- * Example: https://documentation.superfeedr.com/publishers.html
- *
- * @memberof Server
- */
-Server.prototype._checkInRSSFeed = function () {}
-/**
- * If the topic is an XML based feed, publishers should use embedded link elements as described in Appendix B of Web Linking [RFC5988].
- * Similarly, for HTML pages, publishers should use embedded link elements as described in Appendix A of Web Linking [RFC5988].
- * However, for HTML, these <link> elements must be only present in the <head> section of the HTML document. (Note: The restriction on limiting <link> to the <head> is At Risk.)
- *
- * Example: https://documentation.superfeedr.com/publishers.html
- *
- * @memberof Server
- */
-Server.prototype._checkInATOMFeed = function () {}
-
-Server.prototype._handlePublishingRequest = function (req, reply) {}
 
 Server.prototype._handlePublishRequest = function (req, reply) {
   const topicUrl = req.body['hub.url']
 
   const { db } = this.server.mongo
-  this.topicCollection = db.collection('topics')
-  this.topicCollection.findOne({
-    topic: topicUrl
-  })
-    .then((topic) => {
-      if (topic) {
-        return this._fetchTopicContent(topicUrl)
-      }
-      return Promise.reject(Boom.notFound('Topic could not be found'))
+  const subscriptionsCollection = db.collection('subscriptions')
+
+  this._fetchTopicContent(topicUrl)
+    .then((content) => {
+      return subscriptionsCollection.find({
+        topic: topicUrl
+      }).toArray().then((subscriptions) => {
+        return this._distributeContent(subscriptions, content)
+      })
     })
     .then((content) => {
       reply.code(200).send()
@@ -184,6 +185,7 @@ Server.prototype._handlePublishRequest = function (req, reply) {
 
 Server.prototype._fetchTopicContent = function (topic) {
   return this.httpClient.get(topic).then((response) => {
+    return response.data
   })
     .catch((err) => {
       return Promise.reject(Boom.wrap(err, 503, 'Topic endpoint return an invalid answer'))
@@ -196,54 +198,50 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const topic = req.body['hub.topic']
   const leaseSeconds = req.body['hub.lease_seconds']
   const secret = req.body['hub.secret']
+  const challenge = this.hyperid()
 
   const { db } = this.server.mongo
   this.subscriptionCollection = db.collection('subscriptions')
-  this.topicCollection = db.collection('topics')
 
-  if (mode === this.modes.SUBSCRIBE) {
-    this._verifyIntent(callbackUrl, mode, topic, this.hyperid()).then((intent) => {
-      if (intent === this.intentStates.ACCEPTED) {
-        return this._createTopic(topic).then(() => {
-          return this._createSubscription({
-            callbackUrl,
-            mode,
-            topic,
-            leaseSeconds,
-            secret: secret
-          })
-        })
-      } else if (intent === this.intentStates.DECLINED) {
-        return Promise.reject(Boom.forbidden('Subscriber has declined'))
-      } else if (intent === this.intentStates.UNKNOWN) {
-        return Promise.reject(Boom.forbidden('Subscriber has return an invalid answer'))
-      }
-    })
-      .then(() => reply.code(200).send())
-      .catch((err) => {
-        this.log.error({ httpError: err }, 'Could not handle subscription request')
-        reply.code(err.output.statusCode).send(err)
+  this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
+    if (intent === this.intentStates.DECLINED) {
+      return Promise.reject(Boom.forbidden('Subscriber has declined'))
+    } else if (intent === this.intentStates.UNKNOWN) {
+      return Promise.reject(Boom.forbidden('Subscriber has return an invalid answer'))
+    }
+  })
+  .then(() => {
+    if (mode === this.modes.SUBSCRIBE) {
+      return this._createSubscription({
+        callbackUrl,
+        mode,
+        topic,
+        leaseSeconds,
+        secret
       })
-  } else {
-    this._unsubscribe(topic, callbackUrl)
-      .then(() => reply.code(200).send())
-      .catch((err) => {
-        this.log.error({ httpError: err }, 'Could not handle unsubscription request')
-        reply.code(err.output.statusCode).send(err)
+    } else {
+      return this._unsubscribe(topic, callbackUrl).then((subscription) => {
+        if (subscription && subscription.value === null) {
+          return Promise.reject(Boom.notFound('Subscription could not be found'))
+        }
       })
-  }
+    }
+  })
+  .then(x => reply.code(200).send())
+  .catch(err => {
+    this.log.error({ httpError: err }, `Could not handle ${mode} request`)
+    reply.code(err.output.statusCode).send(err)
+  })
 }
 
 Server.prototype._unsubscribe = function (topic, callbackUrl, cb) {
   return this.subscriptionCollection.findOneAndDelete({
     topic: topic,
     callbackUrl: callbackUrl
-  }).then((result) => {
-    return result.value
   })
-    .catch((err) => {
-      return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be deleted'))
-    })
+  .catch((err) => {
+    return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be deleted'))
+  })
 }
 
 Server.prototype._isDuplicateSubscription = function (topic, callbackUrl) {
@@ -257,42 +255,33 @@ Server.prototype._isDuplicateSubscription = function (topic, callbackUrl) {
   })
 }
 
-Server.prototype._isDuplicateTopic = function (topic, cb) {
-  return this.topicCollection.findOne({
-    topic: topic
-  }).then((result) => {
-    return result !== null
-  }).catch((err) => {
-    return Promise.reject(Boom.wrap(err, 500, 'Topic could not be fetched'))
-  })
-}
-
-Server.prototype._createTopic = function (topic) {
-  return this._isDuplicateTopic(topic).then((isDuplicate) => {
-    if (isDuplicate === false) {
-      return this.topicCollection.insertOne({
-        topic: topic
-      }).catch((err) => {
-        return Promise.reject(Boom.wrap(err, 500, 'Topic could not be created'))
-      })
-    }
-  })
-}
-
 Server.prototype._createSubscription = function (subscription, cb) {
   return this._isDuplicateSubscription(subscription.topic, subscription.callbackUrl).then((isDuplicate) => {
     if (isDuplicate === false) {
+      // create new subscription
       return this.subscriptionCollection.insertOne({
         callbackUrl: subscription.callbackUrl,
         mode: subscription.mode,
         topic: subscription.topic,
-        lease_seconds: subscription.leaseSeconds,
-        secret: subscription.secret
+        leaseSeconds: subscription.leaseSeconds,
+        secret: subscription.secret,
+        createdAt: new Date()
       }).catch((err) => {
         return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be created'))
       })
     } else {
-      return Promise.reject(Boom.forbidden('Subscriber is already subscribed'))
+      // renew leaseSeconds subscription time
+      return this.subscriptionCollection.findOneAndUpdate({
+        callbackUrl: subscription.callbackUrl,
+        topic: subscription.topic
+      }, {
+        $set: {
+          leaseSeconds: subscription.leaseSeconds,
+          updatedAt: new Date()
+        }
+      }).catch((err) => {
+        return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be created'))
+      })
     }
   })
 }
@@ -302,8 +291,8 @@ Server.prototype._registerHandlers = function () {
   this.server.post('/publish', Schemas.publishingRequest, (req, resp) => this._handlePublishRequest(req, resp))
 }
 
-Server.prototype.listen = function (opt) {
-  return Promisify(this.server.listen, { thisArg: this.server })(opt)
+Server.prototype.listen = function () {
+  return Promisify(this.server.listen, { thisArg: this.server })(this.options.server)
 }
 
 Server.prototype.close = function (cb) {
