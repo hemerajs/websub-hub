@@ -14,7 +14,8 @@
   },
   "homepage": "https://github.com/hemerajs/websub-hub#readme",
   "scripts": {
-    "test": "jest"
+    "test": "mocha -t 3000",
+    "test-watch": "mocha -t 3000 -w"
   },
   "bin": {
     "websubhub": "./lib/bin.js"
@@ -35,8 +36,8 @@
   },
   "devDependencies": {
     "axios-mock-adapter": "1.8.1",
-    "code": "4.0.0",
-    "jest": "^20.0.4",
+    "code": "4.1.0",
+    "mocha": "3.4.2",
     "mongo-in-memory": "0.0.5",
     "snazzy": "7.0.0",
     "standard": "10.0.2"
