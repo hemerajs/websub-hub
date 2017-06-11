@@ -229,7 +229,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   })
   .then(x => reply.code(200).send())
   .catch(err => {
-    this.log.error({ httpError: err }, `Could not handle ${mode} request`)
+    this.log.error({ httpError: err }, err.output.payload.message)
     reply.code(err.output.statusCode).send(err)
   })
 }

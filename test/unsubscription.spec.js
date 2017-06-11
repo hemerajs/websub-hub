@@ -94,4 +94,71 @@ describe('Basic Unsubscription', function () {
       })
     })
   })
+
+  it('Should not be able to unsubscribe an active subscription because subscriber does not respond with 2xx', function () {
+    const callbackUrl = 'http://127.0.0.1:3001'
+
+    const mock = new MockAdapter(hub.httpClient)
+
+    mock.onPost(callbackUrl).replyOnce(function (config) {
+      return [200, config.data]
+    })
+
+    mock.onPost(callbackUrl).replyOnce(function (config) {
+      return [401, config.data]
+    })
+
+    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }).then((response) => {
+      expect(response.status).to.be.equals(200)
+      return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
+        'hub.callback': callbackUrl,
+        'hub.mode': 'unsubscribe',
+        'hub.topic': topic + '/feeds'
+      }).catch((error) => {
+        expect(error.response.status).to.be.equals(403)
+        mock.restore()
+      })
+    })
+  })
+
+  it('Should not be able to unsubscribe an active subscription because subscriber respond with wrong challenge', function () {
+    const callbackUrl = 'http://127.0.0.1:3001'
+
+    const mock = new MockAdapter(hub.httpClient)
+
+    mock.onPost(callbackUrl).replyOnce(function (config) {
+      return [200, config.data]
+    })
+
+    // respond with wrong challenge key
+    mock.onPost(callbackUrl).replyOnce(function (config) {
+      const data = JSON.parse(config.data)
+      data['hub.challenge'] = '123'
+      return [200, JSON.stringify(data)]
+    })
+
+    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }).then((response) => {
+      expect(response.status).to.be.equals(200)
+      return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
+        'hub.callback': callbackUrl,
+        'hub.mode': 'unsubscribe',
+        'hub.topic': topic + '/feeds'
+      })
+      .then((result) => {
+        throw new Error('Action should fail!')
+      })
+      .catch((error) => {
+        expect(error.response.status).to.be.equals(403)
+        mock.restore()
+      })
+    })
+  })
 })
