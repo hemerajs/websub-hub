@@ -16,6 +16,14 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 - __Node:__ 6.x, 7.x, 8.0
 - __Lead Maintainer:__ [Dustin Deus](https://github.com/StarpTech)
 
+## Expectations
+
+- **Highly performant:** A single node should be able to handle thousand of subscriptions.
+- **Scalable:** It should be easy to scale the hub. We choose monogdb as distributed storage.
+- **Efficient:** It should be able to distribute only delta updates when possible.
+- **Standardized** We trying to be 100% compliant with the W3C Websub specification.
+- **Developer friendly** It should be easy to start and configure the hub and we want to provide an elegant api.
+
 ## Specification
 https://w3c.github.io/websub/
 
@@ -31,75 +39,37 @@ $ webpub
 - The topic represents the feed you want to subscribe.
 
 ## Subscribe
-As soon as you want to subscribe you can initiate a subscription request. The subscriber has to verify that action as mentioned above.
+As soon as you want to subscribe to a topic you can initiate a subscription request. The subscriber has to verify that action as mentioned above.
 
-```js
-var request = require("request")
-
-var options = { method: 'POST',
-  url: 'http://localhost:3000/subscribe',
-  headers: 
-   { 'cache-control': 'no-cache',
-     'content-type': 'application/x-www-form-urlencoded' },
-  form: 
-   { 'hub.topic': 'http://myblog.de/feeds',
-     'hub.callback': 'http://127.0.0.1:5000',
-     'hub.mode': 'subscribe' } }
-
-request(options, function (error, response, body) {
-  if (error) throw new Error(error)
-
-  console.log(body)
-});
-
+```curl
+curl -X POST \
+  http://localhost:3000/subscribe \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/x-www-form-urlencoded' \
+  -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=subscribe'
 ```
 ## Unubscribe
 
-As soon as you want to unsubscribe you can initiate a unsubscription request. The subscriber has to verify that action as mentioned above. 
+As soon as you want to unsubscribe from a topic you can initiate a unsubscription request. The subscriber has to verify that action as mentioned above. 
 
-```js
-var request = require("request")
-
-var options = { method: 'POST',
-  url: 'http://localhost:3000/unsubscribe',
-  headers: 
-   { 'cache-control': 'no-cache',
-     'content-type': 'application/x-www-form-urlencoded' },
-  form: 
-   { 'hub.topic': 'http://myblog.de/feeds',
-     'hub.callback': 'http://127.0.0.1:5000',
-     'hub.mode': 'unsubscribe' } }
-
-request(options, function (error, response, body) {
-  if (error) throw new Error(error)
-
-  console.log(body)
-});
-
+```curl
+curl -X POST \
+  http://localhost:3000/unsubscribe \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/x-www-form-urlencoded' \
+  -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=unsubscribe'
 ```
 
 ## Publish
 
-As soon as you want to notify about updates you can initiate a publishing request to distribute your content across all subscribers.
+As soon as you want to notify about updates you can initiate a publishing request which will distribute your content across all subscribers.
 
-```js
-var request = require("request")
-
-var options = { method: 'POST',
-  url: 'http://localhost:3000/publish',
-  headers: 
-   { 'cache-control': 'no-cache',
-     'content-type': 'application/x-www-form-urlencoded' },
-  form: 
-   { 'hub.url': 'http://myblog.de/feeds',
-     'hub.mode': 'publish' } }
-
-request(options, function (error, response, body) {
-  if (error) throw new Error(error)
-
-  console.log(body)
-});
-
+```curl
+curl -X POST \
+  http://localhost:3000/publish \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/x-www-form-urlencoded' \
+  -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.mode=publish'
 ```
 
 ## TODO
