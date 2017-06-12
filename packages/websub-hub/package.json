@@ -1,6 +1,6 @@
 {
   "name": "websub-hub",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "WebSub Hub Server for NodeJs",
   "main": "server.js",
   "repository": {
@@ -25,7 +25,6 @@
     "websub",
     "hub"
   ],
-  "devDependencies": {},
   "dependencies": {
     "axios": "0.16.2",
     "body": "5.1.0",
