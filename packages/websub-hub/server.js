@@ -13,6 +13,7 @@ const Serializer = require('./lib/serializer')
 const Promisify = require('es6-promisify')
 const EventEmitter = require('events')
 const Crypto = require('crypto')
+const PromiseRetry = require('promise-retry')
 
 const defaultOptions = {
   name: 'hub',
@@ -28,6 +29,13 @@ const defaultOptions = {
   },
   mongo: {
     url: ''
+  },
+  retry: {
+    retries: 1,
+    factor: 2,
+    minTimeout: 1000,
+    maxTimeout: 10000,
+    randomize: false
   }
 }
 
@@ -42,8 +50,15 @@ function Server (options) {
   this.hyperid = Hyperid()
   this._addContentTypeParser()
   this._createDbConnection()
-  this.intentStates = { ACCEPTED: 'accepted', DECLINED: 'declined', UNKNOWN: 'unknown' }
-  this.modes = { SUBSCRIBE: 'subscribe', UNSUBSRIBE: 'unsubscribe' }
+  this.intentStates = {
+    ACCEPTED: 'accepted',
+    DECLINED: 'declined',
+    UNKNOWN: 'unknown'
+  }
+  this.modes = {
+    SUBSCRIBE: 'subscribe',
+    UNSUBSRIBE: 'unsubscribe'
+  }
   this._registerHandlers()
 
   const pretty = Pino.pretty()
@@ -72,13 +87,13 @@ Server.prototype._createDbConnection = function () {
 }
 
 /**
-   * Subscription is initiated by the subscriber making an HTTPS or HTTP POST [RFC7231] request to the hub URL.
-   * This request must have a Content-Type header of application/x-www-form-urlencoded (described in Section 4.10.22.6 [HTML5]),
-   * must use UTF-8 [Encoding] as the document character encoding.
-   *
-   *
-   * @memberof Server
-   */
+ * Subscription is initiated by the subscriber making an HTTPS or HTTP POST [RFC7231] request to the hub URL.
+ * This request must have a Content-Type header of application/x-www-form-urlencoded (described in Section 4.10.22.6 [HTML5]),
+ * must use UTF-8 [Encoding] as the document character encoding.
+ *
+ *
+ * @memberof Server
+ */
 Server.prototype._addContentTypeParser = function () {
   this.server.addContentTypeParser('application/x-www-form-urlencoded', function (req, done) {
     FormBody(req, (err, body) => {
@@ -88,19 +103,19 @@ Server.prototype._addContentTypeParser = function () {
 }
 
 /**
-  * The hub verifies a subscription request by sending an HTTP [RFC7231] GET request to the subscriber's callback URL as given in the subscription request.
-  * The subscriber must confirm that the hub.topic corresponds to a pending subscription or unsubscription that it wishes to carry out.
-  * If so, the subscriber must respond with an HTTP success (2xx) code with a response body equal to the hub.challenge parameter.
-  * If the subscriber does not agree with the action, the subscriber must respond with a 404 "Not Found" response.
-  *
-  * @param {any} callbackUrl
-  * @param {any} mode
-  * @param {any} topic
-  * @param {any} challenge
-  * @param {any} cb
-  *
-  * @memberof Server
-  */
+ * The hub verifies a subscription request by sending an HTTP [RFC7231] GET request to the subscriber's callback URL as given in the subscription request.
+ * The subscriber must confirm that the hub.topic corresponds to a pending subscription or unsubscription that it wishes to carry out.
+ * If so, the subscriber must respond with an HTTP success (2xx) code with a response body equal to the hub.challenge parameter.
+ * If the subscriber does not agree with the action, the subscriber must respond with a 404 "Not Found" response.
+ *
+ * @param {any} callbackUrl
+ * @param {any} mode
+ * @param {any} topic
+ * @param {any} challenge
+ * @param {any} cb
+ *
+ * @memberof Server
+ */
 Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, cb) {
   return this.httpClient.post(callbackUrl, {
     'hub.topic': topic,
@@ -141,33 +156,56 @@ Server.prototype._distributeContent = function (subscriptions, content) {
     if (sub.secret) {
       headers['X-Hub-Signature'] = Crypto.createHmac('sha256', sub.secret).update(JSON.stringify(content)).digest('hex')
     }
-    const request = this.httpClient({
-      method: 'post',
-      headers,
-      url: sub.callbackUrl,
-      data: content
+
+    const request = PromiseRetry((retry, number) => {
+      this.log.debug('Attempt number %s for Sub: %s', number, sub._id)
+
+      return this.httpClient({
+        method: 'post',
+        headers,
+        url: sub.callbackUrl,
+        data: content
+      })
+      .catch(retry)
+    }, this.options.retry)
+    .then((response) => this.log.debug('Sub: %s respond with %s', sub._id, response.status))
+    .catch((error) => {
+      const err = Boom.wrap(error, error.response.status)
+      this.log.debug({
+        httpError: err
+      }, 'Subscription: %s was canceled', sub._id)
+
+      // remove subscription and ignore http errors to dont break the batch call
+      this._cancelSubscription(sub)
     })
-    .then((response) => {
-      // Ignore http errors
-      this.log.debug('Subscription ' + sub._id + ' respond with ' + response.status)
-    }).catch((error) => {
-      const err = Boom.wrap(error, error.response.status, 'Content could not be send')
-      this.log.error({ httpError: err }, 'Content distribution to ' + error.response.config.url)
-    })
+
     requests.push(request)
   }
   return Axios.all(requests)
 }
 
+Server.prototype._cancelSubscription = function (subscription) {
+  return this.subscriptionsCollection.findOneAndDelete({
+    callbackUrl: subscription.callbackUrl,
+    topic: subscription.topic
+  }).catch((error) => {
+    this.log.error({
+      internalError: error
+    }, 'Subscription could not be deleted')
+  })
+}
+
 Server.prototype._handlePublishRequest = function (req, reply) {
   const topicUrl = req.body['hub.url']
 
-  const { db } = this.server.mongo
-  const subscriptionsCollection = db.collection('subscriptions')
+  const {
+    db
+  } = this.server.mongo
+  this.subscriptionsCollection = db.collection('subscriptions')
 
   this._fetchTopicContent(topicUrl)
     .then((content) => {
-      return subscriptionsCollection.find({
+      return this.subscriptionsCollection.find({
         topic: topicUrl
       }).toArray().then((subscriptions) => {
         return this._distributeContent(subscriptions, content)
@@ -177,7 +215,9 @@ Server.prototype._handlePublishRequest = function (req, reply) {
       reply.code(200).send()
     })
     .catch((err) => {
-      this.log.error({ httpError: err }, 'Could not handle publishing request')
+      this.log.error({
+        httpError: err
+      }, 'Could not handle publishing request')
       reply.code(err.output.statusCode).send(err)
     })
 }
@@ -199,7 +239,9 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const secret = req.body['hub.secret']
   const challenge = this.hyperid()
 
-  const { db } = this.server.mongo
+  const {
+    db
+  } = this.server.mongo
   this.subscriptionCollection = db.collection('subscriptions')
 
   this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
@@ -209,28 +251,30 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
       return Promise.reject(Boom.forbidden('Subscriber has return an invalid answer'))
     }
   })
-  .then(() => {
-    if (mode === this.modes.SUBSCRIBE) {
-      return this._createSubscription({
-        callbackUrl,
-        mode,
-        topic,
-        leaseSeconds,
-        secret
-      })
-    } else {
-      return this._unsubscribe(topic, callbackUrl).then((subscription) => {
-        if (subscription && subscription.value === null) {
-          return Promise.reject(Boom.notFound('Subscription could not be found'))
-        }
-      })
-    }
-  })
-  .then(x => reply.code(200).send())
-  .catch(err => {
-    this.log.error({ httpError: err }, err.output.payload.message)
-    reply.code(err.output.statusCode).send(err)
-  })
+    .then(() => {
+      if (mode === this.modes.SUBSCRIBE) {
+        return this._createSubscription({
+          callbackUrl,
+          mode,
+          topic,
+          leaseSeconds,
+          secret
+        })
+      } else {
+        return this._unsubscribe(topic, callbackUrl).then((subscription) => {
+          if (subscription && subscription.value === null) {
+            return Promise.reject(Boom.notFound('Subscription could not be found'))
+          }
+        })
+      }
+    })
+    .then(x => reply.code(200).send())
+    .catch(err => {
+      this.log.error({
+        httpError: err
+      }, err.output.payload.message)
+      reply.code(err.output.statusCode).send(err)
+    })
 }
 
 Server.prototype._unsubscribe = function (topic, callbackUrl, cb) {
@@ -238,9 +282,9 @@ Server.prototype._unsubscribe = function (topic, callbackUrl, cb) {
     topic: topic,
     callbackUrl: callbackUrl
   })
-  .catch((err) => {
-    return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be deleted'))
-  })
+    .catch((err) => {
+      return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be deleted'))
+    })
 }
 
 Server.prototype._isDuplicateSubscription = function (topic, callbackUrl) {
@@ -291,11 +335,15 @@ Server.prototype._registerHandlers = function () {
 }
 
 Server.prototype.listen = function () {
-  return Promisify(this.server.listen, { thisArg: this.server })(this.options.port, this.options.address)
+  return Promisify(this.server.listen, {
+    thisArg: this.server
+  })(this.options.port, this.options.address)
 }
 
 Server.prototype.close = function () {
-  return Promisify(this.server.close, { thisArg: this.server })()
+  return Promisify(this.server.close, {
+    thisArg: this.server
+  })()
 }
 
 module.exports = Server

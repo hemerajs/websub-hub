@@ -2,7 +2,7 @@
 
 function internalError (ctx) {
   return {
-    msg: ctx.msg,
+    msg: ctx.message,
     code: ctx.code
   }
 }

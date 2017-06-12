@@ -18,7 +18,8 @@ describe('Basic Subscription', function () {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
-        requestTimeout: 500,
+        timeout: 500,
+        logLevel: 'debug',
         mongo: {
           url: mongoInMemory.getMongouri('hub')
         }
