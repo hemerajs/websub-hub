@@ -33,6 +33,7 @@
     "fastify": "0.21.0",
     "fastify-mongodb": "0.1.0",
     "hoek": "4.1.1",
-    "hyperid": "1.2.0"
+    "hyperid": "1.2.0",
+    "websub-hub-cli": "0.0.3"
   }
 }
