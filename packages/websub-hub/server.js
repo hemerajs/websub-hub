@@ -18,12 +18,12 @@ const defaultOptions = {
   name: 'hub',
   port: 3000,
   address: '127.0.0.1',
-  timeout: 1000,
-  logLevel: 'info',
+  timeout: 2000,
+  logLevel: 'fatal',
   hubUrl: 'http://127.0.0.1:3000',
   fastify: {
     logger: {
-      level: 'info'
+      level: 'fatal'
     }
   },
   mongo: {
