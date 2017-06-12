@@ -1,7 +1,7 @@
 {
   "name": "websub-hub",
   "version": "0.0.2",
-  "description": "WIP - WebSub Hub Server for NodeJs",
+  "description": "WebSub Hub Server for NodeJs",
   "main": "server.js",
   "repository": {
     "type": "git",

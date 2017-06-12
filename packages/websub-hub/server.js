@@ -16,6 +16,8 @@ const Crypto = require('crypto')
 
 const defaultOptions = {
   name: 'hub',
+  port: 3000,
+  address: '127.0.0.1',
   requestTimeout: 1000,
   logLevel: 'info',
   hubUrl: 'http://127.0.0.1:3000',
@@ -23,9 +25,6 @@ const defaultOptions = {
     logger: {
       level: 'info'
     }
-  },
-  server: {
-    port: 3000
   },
   mongo: {
     url: 'mongodb://localhost:27017/hub'
@@ -292,10 +291,10 @@ Server.prototype._registerHandlers = function () {
 }
 
 Server.prototype.listen = function () {
-  return Promisify(this.server.listen, { thisArg: this.server })(this.options.server)
+  return Promisify(this.server.listen, { thisArg: this.server })(this.options.port, this.options.address)
 }
 
-Server.prototype.close = function (cb) {
+Server.prototype.close = function () {
   return Promisify(this.server.close, { thisArg: this.server })()
 }
 
