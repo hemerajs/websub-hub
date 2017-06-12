@@ -49,7 +49,7 @@ install:
   - cmd: npm config list
   - cmd: npm config set python %PYTHON2%\python.exe --global
 
-  - npm install
+  - npm run setup
   - npm run test
 
 build: off

@@ -1,0 +1,46 @@
+{
+  "name": "websub-hub-cli",
+  "version": "0.0.0",
+  "description": "CLI for the WebSub Hub Server",
+  "main": "cli.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hemerajs/websub-hub.git"
+  },
+  "author": "Dustin Deus <deusdustin@gmail.com> (http://www.starptech.de)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hemerajs/websub-hub/issues"
+  },
+  "keywords": [
+    "webshub-hub",
+    "cli",
+    "websub"
+  ],
+  "homepage": "https://github.com/hemerajs/websub-hub#readme",
+  "scripts": {
+    "test": "mocha -t 3000",
+    "test-watch": "mocha -t 3000 -w"
+  },
+  "bin": {
+    "websubhub": "./cli.js"
+  },
+  "engines": {
+    "node": ">=6"
+  },
+  "standard": {
+    "ignore": [
+      "**/node_modules/"
+    ],
+    "envs": [
+      "es6",
+      "node",
+      "mocha"
+    ],
+    "globals": []
+  },
+  "devDependencies": {
+    "minimist": "^1.2.0"
+  },
+  "dependencies": {}
+}

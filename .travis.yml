@@ -9,6 +9,7 @@ env:
   - CXX="g++-4.8"
 
 script:
+  - npm run setup
   - npm run test
 
 addons:

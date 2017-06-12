@@ -67,7 +67,7 @@ Util.inherits(Server, EventEmitter)
 Server.prototype._createDbConnection = function () {
   this.server.register(require('fastify-mongodb'), this.options.mongo, err => {
     if (err) {
-      this.emit('error', err)
+      this.log.error(err, 'Could not connect to Mongodb')
     }
   })
 }

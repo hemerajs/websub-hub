@@ -1,0 +1,39 @@
+{
+  "name": "websub-hub",
+  "version": "0.0.2",
+  "description": "WIP - WebSub Hub Server for NodeJs",
+  "main": "server.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hemerajs/websub-hub.git"
+  },
+  "author": "Dustin Deus <deusdustin@gmail.com> (http://www.starptech.de)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hemerajs/websub-hub/issues"
+  },
+  "homepage": "https://github.com/hemerajs/websub-hub#readme",
+  "bin": {
+    "websub-hub": "./lib/bin.js"
+  },
+  "engines": {
+    "node": ">=6"
+  },
+  "keywords": [
+    "webshub-hub",
+    "cli",
+    "websub",
+    "hub"
+  ],
+  "devDependencies": {},
+  "dependencies": {
+    "axios": "0.16.2",
+    "body": "5.1.0",
+    "boom": "5.1.0",
+    "es6-promisify": "5.0.0",
+    "fastify": "0.21.0",
+    "fastify-mongodb": "0.1.0",
+    "hoek": "4.1.1",
+    "hyperid": "1.2.0"
+  }
+}
