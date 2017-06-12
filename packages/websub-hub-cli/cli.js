@@ -28,12 +28,15 @@ function runHub (opts) {
   } catch (e) {}
 
   const options = {
-    requestTimeout: opts.timeout,
+    timeout: opts.timeout,
     logLevel: opts['log-level'],
     fastify: {
       logger: {
         level: opts['log-level']
       }
+    },
+    mongo: {
+      url: opts['mongodb-url']
     }
   }
 
@@ -50,20 +53,23 @@ function runHub (opts) {
 function cli () {
   start(Minimist(process.argv.slice(2), {
     integer: ['port', 'timeout'],
-    boolean: ['pretty-logs'],
-    string: ['log-level', 'address', 'file'],
+    boolean: [],
+    string: ['log-level', 'address', 'file', 'mongodb-url'],
     alias: {
       port: 'p',
       help: 'h',
       file: 'f',
       timeout: 't',
       address: 'a',
+      'mongodb-url': 'm',
       'log-level': 'l'
     },
     default: {
       port: 3000,
+      timeout: 2000,
       address: '127.0.0.1',
-      'log-level': 'fatal'
+      'log-level': 'fatal',
+      'mongodb-url': 'mongodb://localhost:27017/hub'
     }
   }))
 }

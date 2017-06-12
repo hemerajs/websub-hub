@@ -18,7 +18,7 @@ const defaultOptions = {
   name: 'hub',
   port: 3000,
   address: '127.0.0.1',
-  requestTimeout: 1000,
+  timeout: 1000,
   logLevel: 'info',
   hubUrl: 'http://127.0.0.1:3000',
   fastify: {
@@ -27,7 +27,7 @@ const defaultOptions = {
     }
   },
   mongo: {
-    url: 'mongodb://localhost:27017/hub'
+    url: ''
   }
 }
 
@@ -37,7 +37,7 @@ function Server (options) {
   this.options = Hoek.applyToDefaults(defaultOptions, options || {})
   this.server = Fastify(this.options)
   this.httpClient = Axios.create({
-    timeout: this.options.requestTimeout
+    timeout: this.options.timeout
   })
   this.hyperid = Hyperid()
   this._addContentTypeParser()

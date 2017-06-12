@@ -9,8 +9,11 @@ Usage: websub-hub [opts] <file>
   -l, --log-level
       Log level (default to fatal)
 
-  -o, --options
+  -f, --file
       Use custom config file
+
+  -m, --mongodb-url
+      Mongodb connection string (default to mongodb://localhost:27017/hub)
 
   -h, --help
       Show this help message
