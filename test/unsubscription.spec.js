@@ -6,6 +6,7 @@ const Axios = require('axios')
 const Hub = require('./../packages/websub-hub')
 const MongoInMemory = require('mongo-in-memory')
 const MockAdapter = require('axios-mock-adapter')
+const Sinon = require('sinon')
 
 describe('Basic Unsubscription', function () {
   const PORT = 3000
@@ -20,6 +21,10 @@ describe('Basic Unsubscription', function () {
       hub = new Hub({
         timeout: 500,
         logLevel: 'debug',
+        retry: {
+          retries: 1,
+          randomize: false
+        },
         mongo: {
           url: mongoInMemory.getMongouri('hub')
         }
@@ -46,7 +51,10 @@ describe('Basic Unsubscription', function () {
 
     const mock = new MockAdapter(hub.httpClient)
 
+    const callbackUrlCall = Sinon.spy()
+
     mock.onPost(callbackUrl).reply(function (config) {
+      callbackUrlCall()
       return [200, config.data]
     })
 
@@ -62,17 +70,21 @@ describe('Basic Unsubscription', function () {
         'hub.topic': topic + '/feeds'
       }).then((response) => {
         expect(response.status).to.be.equals(200)
+        expect(callbackUrlCall.called).to.be.equals(true)
         mock.restore()
       })
     })
   })
 
-  it('Should respond with 404 because subscription does not exist', function () {
+  it('Should respond with 200 also when subscription does not exist', function () {
     const callbackUrl = 'http://127.0.0.1:3001'
 
     const mock = new MockAdapter(hub.httpClient)
 
+    const callbackUrlCall = Sinon.spy()
+
     mock.onPost(callbackUrl).reply(function (config) {
+      callbackUrlCall()
       return [200, config.data]
     })
 
@@ -87,7 +99,8 @@ describe('Basic Unsubscription', function () {
         'hub.mode': 'unsubscribe',
         'hub.topic': topic + '/blog/feeds'
       }).catch((error) => {
-        expect(error.response.status).to.be.equals(404)
+        expect(error.response.status).to.be.equals(200)
+        expect(callbackUrlCall.called).to.be.equals(true)
         mock.restore()
       })
     })
@@ -98,11 +111,16 @@ describe('Basic Unsubscription', function () {
 
     const mock = new MockAdapter(hub.httpClient)
 
+    const callbackUrlCall = Sinon.spy()
+    const callbackUrlCall2 = Sinon.spy()
+
     mock.onPost(callbackUrl).replyOnce(function (config) {
+      callbackUrlCall()
       return [200, config.data]
     })
 
     mock.onPost(callbackUrl).replyOnce(function (config) {
+      callbackUrlCall2()
       return [401, config.data]
     })
 
@@ -118,6 +136,8 @@ describe('Basic Unsubscription', function () {
         'hub.topic': topic + '/feeds'
       }).catch((error) => {
         expect(error.response.status).to.be.equals(403)
+        expect(callbackUrlCall.called).to.be.equals(true)
+        expect(callbackUrlCall2.called).to.be.equals(true)
         mock.restore()
       })
     })
@@ -128,7 +148,11 @@ describe('Basic Unsubscription', function () {
 
     const mock = new MockAdapter(hub.httpClient)
 
+    const callbackUrlCall = Sinon.spy()
+    const callbackUrlCall2 = Sinon.spy()
+
     mock.onPost(callbackUrl).replyOnce(function (config) {
+      callbackUrlCall()
       return [200, config.data]
     })
 
@@ -136,6 +160,7 @@ describe('Basic Unsubscription', function () {
     mock.onPost(callbackUrl).replyOnce(function (config) {
       const data = JSON.parse(config.data)
       data['hub.challenge'] = '123'
+      callbackUrlCall2()
       return [200, JSON.stringify(data)]
     })
 
@@ -150,11 +175,10 @@ describe('Basic Unsubscription', function () {
         'hub.mode': 'unsubscribe',
         'hub.topic': topic + '/feeds'
       })
-      .then((result) => {
-        throw new Error('Action should fail!')
-      })
       .catch((error) => {
         expect(error.response.status).to.be.equals(403)
+        expect(callbackUrlCall.called).to.be.equals(true)
+        expect(callbackUrlCall2.called).to.be.equals(true)
         mock.restore()
       })
     })

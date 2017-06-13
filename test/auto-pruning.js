@@ -8,7 +8,7 @@ const MongoInMemory = require('mongo-in-memory')
 const MockAdapter = require('axios-mock-adapter')
 const Sinon = require('sinon')
 
-describe('Basic Publishing', function () {
+describe('Auto pruning', function () {
   const PORT = 3000
   let hub
   let mongoInMemory
@@ -21,12 +21,13 @@ describe('Basic Publishing', function () {
       hub = new Hub({
         timeout: 500,
         logLevel: 'debug',
-        retry: {
-          retries: 1,
-          randomize: false
-        },
         mongo: {
           url: mongoInMemory.getMongouri('hub')
+        },
+        retry: {
+          retries: 3,
+          minTimeout: 250,
+          randomize: false
         }
       })
       hub.listen().then(() => {
@@ -46,53 +47,23 @@ describe('Basic Publishing', function () {
     })
   })
 
-  it('Should not be able to publish to topic because topic endpoint does not respond with 2xx Status code', function () {
-    const callbackUrl = 'http://127.0.0.1:3001'
-
-    const mock = new MockAdapter(hub.httpClient)
-
-    const callbackUrlCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).reply(function (config) {
-      callbackUrlCall()
-      return [200, config.data]
-    })
-
-    mock.onGet(topic + '/feeds').reply(500)
-
-    // Create subscriptiona and topic
-    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
-      'hub.callback': callbackUrl,
-      'hub.mode': 'subscribe',
-      'hub.topic': topic + '/feeds'
-    }).then((response) => {
-      expect(response.status).to.be.equals(200)
-    })
-    .then(() => {
-      Axios.default.post(`http://localhost:${PORT}/publish`, {
-        'hub.mode': 'publish',
-        'hub.url': topic + '/feeds'
-      }).catch((error) => {
-        expect(error.response.status).to.be.equals(503)
-        expect(callbackUrlCall.called).to.be.equals(true)
-        mock.restore()
-      })
-    })
-  })
-
-  it('Should be able to publish to topic and distribute content to subscribers', function () {
+  it('Should delete subscription when subscriber doesnt return a valid answer after max retry', function () {
     const callbackUrl = 'http://127.0.0.1:3002'
 
     const mock = new MockAdapter(hub.httpClient)
 
     const callbackUrlCall = Sinon.spy()
+    const distributeContentCall = Sinon.spy()
 
     mock.onPost(callbackUrl).replyOnce(function (config) {
       callbackUrlCall()
       return [200, config.data]
     })
 
-    mock.onPost(callbackUrl).replyOnce(200)
+    mock.onPost(callbackUrl).reply(function (config) {
+      distributeContentCall()
+      return [500]
+    })
 
     mock.onGet(topic + '/feeds').reply(200, {
       'version': 'https://jsonfeed.org/version/1',
@@ -127,8 +98,14 @@ describe('Basic Publishing', function () {
         'hub.url': topic + '/feeds'
       }).then((response) => {
         expect(response.status).to.be.equals(200)
+        // check retrys
         expect(callbackUrlCall.called).to.be.equals(true)
-        mock.restore()
+        expect(distributeContentCall.callCount).to.be.equals(4)
+        // check if sub was removed
+        return Axios.default.get(`http://localhost:${PORT}/subscriptions`).then((response) => {
+          expect(response.data.length).to.be.equals(0)
+          mock.restore()
+        })
       })
     })
   })

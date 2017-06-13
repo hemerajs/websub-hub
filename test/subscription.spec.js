@@ -6,6 +6,7 @@ const Axios = require('axios')
 const Hub = require('./../packages/websub-hub')
 const MongoInMemory = require('mongo-in-memory')
 const MockAdapter = require('axios-mock-adapter')
+const Sinon = require('sinon')
 
 describe('Basic Subscription', function () {
   const PORT = 3000
@@ -20,6 +21,10 @@ describe('Basic Subscription', function () {
       hub = new Hub({
         timeout: 500,
         logLevel: 'debug',
+        retry: {
+          retries: 1,
+          randomize: false
+        },
         mongo: {
           url: mongoInMemory.getMongouri('hub')
         }
@@ -59,7 +64,10 @@ describe('Basic Subscription', function () {
 
     const mock = new MockAdapter(hub.httpClient)
 
+    const callbackUrlCall = Sinon.spy()
+
     mock.onPost(callbackUrl).reply(function (config) {
+      callbackUrlCall()
       return [200, config.data]
     })
 
@@ -69,6 +77,7 @@ describe('Basic Subscription', function () {
       'hub.topic': topic + '/feeds'
     }).then((response) => {
       expect(response.status).to.be.equals(200)
+      expect(callbackUrlCall.called).to.be.equals(true)
       mock.restore()
     })
   })
@@ -78,7 +87,10 @@ describe('Basic Subscription', function () {
 
     const mock = new MockAdapter(hub.httpClient)
 
+    const callbackUrlCall = Sinon.spy()
+
     mock.onPost(callbackUrl).reply(function (config) {
+      callbackUrlCall()
       return [200, config.data]
     })
 
@@ -94,6 +106,7 @@ describe('Basic Subscription', function () {
         'hub.topic': topic + '/feeds'
       }).then((response) => {
         expect(response.status).to.be.equals(200)
+        expect(callbackUrlCall.called).to.be.equals(true)
         mock.restore()
       })
     })

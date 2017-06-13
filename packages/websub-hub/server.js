@@ -14,6 +14,8 @@ const Promisify = require('es6-promisify')
 const EventEmitter = require('events')
 const Crypto = require('crypto')
 const PromiseRetry = require('promise-retry')
+const RxStream = require('rxjs-stream')
+const Rx = require('rxjs')
 
 const defaultOptions = {
   name: 'hub',
@@ -31,11 +33,11 @@ const defaultOptions = {
     url: ''
   },
   retry: {
-    retries: 1,
+    retries: 5,
     factor: 2,
     minTimeout: 1000,
-    maxTimeout: 10000,
-    randomize: false
+    maxTimeout: 20000,
+    randomize: true
   }
 }
 
@@ -49,7 +51,7 @@ function Server (options) {
   })
   this.hyperid = Hyperid()
   this._addContentTypeParser()
-  this._createDbConnection()
+  this._createConnections()
   this.intentStates = {
     ACCEPTED: 'accepted',
     DECLINED: 'declined',
@@ -60,6 +62,7 @@ function Server (options) {
     UNSUBSRIBE: 'unsubscribe'
   }
   this._registerHandlers()
+  this.outgoingObservable = new Rx.Subject()
 
   const pretty = Pino.pretty()
   pretty.pipe(process.stdout)
@@ -78,11 +81,21 @@ function Server (options) {
 
 Util.inherits(Server, EventEmitter)
 
-Server.prototype._createDbConnection = function () {
+Server.prototype._createConnections = function () {
+  // register mongodb
   this.server.register(require('fastify-mongodb'), this.options.mongo, err => {
     if (err) {
       this.log.error(err, 'Could not connect to Mongodb')
     }
+  })
+  // register websocket server
+  this.server.register(require('fastify-websocket'), { handle: (conn) => this._handleWebsocketRequests(conn) }, err => {
+    if (err) {
+      this.log.error(err, 'Could not create websocket server')
+    }
+    // fires on every new connection
+    this.server.websocketServer.on('stream', function (stream, request) {
+    })
   })
 }
 
@@ -128,8 +141,6 @@ Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, 
           return this.intentStates.ACCEPTED
         }
         return this.intentStates.DECLINED
-      } else if (response.status === 404) {
-        return this.intentStates.DECLINED
       }
       return this.intentStates.UNKNOWN
     })
@@ -152,6 +163,7 @@ Server.prototype._distributeContent = function (subscriptions, content) {
     const headers = {}
     // The request must include at least one Link Header
     headers['Link'] = `<${sub.topic}>; rel="self", <${this.options.hubUrl}>; rel="hub"`
+    headers['Content-Type'] = 'application/json'
     // must send a X-Hub-Signature header if the subscription was made with a hub.secret
     if (sub.secret) {
       headers['X-Hub-Signature'] = Crypto.createHmac('sha256', sub.secret).update(JSON.stringify(content)).digest('hex')
@@ -175,7 +187,7 @@ Server.prototype._distributeContent = function (subscriptions, content) {
         httpError: err
       }, 'Subscription: %s was canceled', sub._id)
 
-      // remove subscription and ignore http errors to dont break the batch call
+      // remove subscription and ignore http errors to don't break the batch request
       this._cancelSubscription(sub)
     })
 
@@ -226,9 +238,19 @@ Server.prototype._fetchTopicContent = function (topic) {
   return this.httpClient.get(topic).then((response) => {
     return response.data
   })
-    .catch((err) => {
-      return Promise.reject(Boom.wrap(err, 503, 'Topic endpoint return an invalid answer'))
+    .catch((error) => {
+      return Promise.reject(Boom.wrap(error, error.response.status))
     })
+}
+
+Server.prototype._handleWebsocketRequests = function (conn) {
+  conn.setEncoding('utf8')
+  const ob = RxStream.streamToStringRx(conn).map(text => text.toUpperCase())
+  ob.subscribe((x) => {
+    this.outgoingObservable.next('pong')
+  })
+
+  RxStream.rxToStream(this.outgoingObservable).pipe(conn)
 }
 
 Server.prototype._handleSubscriptionRequest = function (req, reply) {
@@ -237,6 +259,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const topic = req.body['hub.topic']
   const leaseSeconds = req.body['hub.lease_seconds']
   const secret = req.body['hub.secret']
+  const protocol = req.body['hub.protocol']
   const challenge = this.hyperid()
 
   const {
@@ -253,19 +276,9 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   })
     .then(() => {
       if (mode === this.modes.SUBSCRIBE) {
-        return this._createSubscription({
-          callbackUrl,
-          mode,
-          topic,
-          leaseSeconds,
-          secret
-        })
+        return this._createSubscription({ callbackUrl, mode, topic, leaseSeconds, secret, protocol })
       } else {
-        return this._unsubscribe(topic, callbackUrl).then((subscription) => {
-          if (subscription && subscription.value === null) {
-            return Promise.reject(Boom.notFound('Subscription could not be found'))
-          }
-        })
+        return this._unsubscribe(topic, callbackUrl)
       }
     })
     .then(x => reply.code(200).send())
@@ -275,6 +288,19 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
       }, err.output.payload.message)
       reply.code(err.output.statusCode).send(err)
     })
+}
+
+Server.prototype._handleSubscriptionListRequest = function (req, reply) {
+  const {
+    db
+  } = this.server.mongo
+  const subscriptionCollection = db.collection('subscriptions')
+  const cursor = subscriptionCollection.find({})
+  cursor.project({
+    secret: 0
+  })
+
+  reply.code(200).send(cursor.toArray())
 }
 
 Server.prototype._unsubscribe = function (topic, callbackUrl, cb) {
@@ -308,6 +334,7 @@ Server.prototype._createSubscription = function (subscription, cb) {
         topic: subscription.topic,
         leaseSeconds: subscription.leaseSeconds,
         secret: subscription.secret,
+        protocol: subscription.protocol,
         createdAt: new Date()
       }).catch((err) => {
         return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be created'))
@@ -332,6 +359,7 @@ Server.prototype._createSubscription = function (subscription, cb) {
 Server.prototype._registerHandlers = function () {
   this.server.post('/subscribe', Schemas.subscriptionRequest, (req, resp) => this._handleSubscriptionRequest(req, resp))
   this.server.post('/publish', Schemas.publishingRequest, (req, resp) => this._handlePublishRequest(req, resp))
+  this.server.get('/subscriptions', (req, resp) => this._handleSubscriptionListRequest(req, resp))
 }
 
 Server.prototype.listen = function () {

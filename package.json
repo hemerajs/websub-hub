@@ -26,7 +26,9 @@
     "lerna": "2.0.0-rc.5",
     "mocha": "3.4.2",
     "mongo-in-memory": "0.0.5",
+    "sinon": "2.3.4",
     "snazzy": "7.0.0",
-    "standard": "10.0.2"
+    "standard": "10.0.2",
+    "websocket-stream": "^5.0.0"
   }
 }
