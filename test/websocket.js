@@ -8,7 +8,7 @@ const MockAdapter = require('axios-mock-adapter')
 const Sinon = require('sinon')
 const Websocket = require('ws')
 
-describe.only('Websocket', function () {
+describe('Websocket', function () {
   const PORT = 3000
   let hub
   let mongoInMemory

@@ -256,6 +256,8 @@ Server.prototype._distributeContentWs = function (sub, content) {
   } else {
     this.log.info('Ws Client could not be found!')
   }
+
+  return Promise.resolve()
 }
 
 /**
@@ -292,13 +294,15 @@ Server.prototype._handlePublishRequest = function (req, reply) {
       return this.subscriptionsCollection.find({
         topic: topicUrl
       }).toArray().then((subscriptions) => {
+        const requests = []
         subscriptions.forEach((s) => {
           if (s.protocol === 'ws') {
-            this._distributeContentWs(s, content)
+            requests.push(this._distributeContentWs(s, content))
           } else {
-            this._distributeContentHttp(s, content)
+            requests.push(this._distributeContentHttp(s, content))
           }
         })
+        return Promise.all(requests)
       })
     })
     .then((content) => {
