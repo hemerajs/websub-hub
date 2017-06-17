@@ -175,6 +175,7 @@ Server.prototype._createWsConnection = function () {
         const topic = payload['hub.topic']
         const leaseSeconds = payload['hub.lease_seconds']
         const secret = payload['hub.secret']
+        const format = payload['hub.format'] || 'json'
         const challenge = this.hyperid()
         const protocol = 'ws'
 
@@ -194,6 +195,7 @@ Server.prototype._createWsConnection = function () {
             leaseSeconds,
             secret,
             protocol,
+            format,
             token: req.webhubToken
           })
           send({ success: true, 'hub.mode': mode })
@@ -321,9 +323,6 @@ Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, 
  */
 Server.prototype._distributeContentHttp = function (sub, content) {
   const headers = {}
-  // The request must include at least one Link Header
-  headers['Link'] = `<${sub.topic}>; rel="self", <${this.options.hubUrl}>; rel="hub"`
-  headers['Content-Type'] = 'application/json'
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
   if (sub.secret) {
     headers['X-Hub-Signature'] = Crypto.createHmac('sha256', sub.secret).update(JSON.stringify(content)).digest('hex')
@@ -338,7 +337,7 @@ Server.prototype._distributeContentHttp = function (sub, content) {
       url: sub.callbackUrl,
       data: content
     })
-        .catch(retry)
+    .catch(retry)
   }, this.options.retry)
     .then((response) => this.log.debug('Sub: %s respond with %s', sub._id, response.status))
     .catch((error) => {
@@ -359,13 +358,16 @@ Server.prototype._distributeContentHttp = function (sub, content) {
  * @param {any} content
  */
 Server.prototype._distributeContentWs = function (sub, content) {
-  const response = {}
-  response.headers = {}
-  response.success = true
-  response['hub.mode'] = 'update'
+  const response = {
+    success: true,
+    'hub.mode': 'update'
+  }
+  response.headers = {
+    topic: sub.topic,
+    hub: this.options.hubUrl
+  }
   response.result = content
-  response.headers.topic = sub.topic
-  response.headers.hub = this.options.hubUrl
+
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
   if (sub.secret) {
     response.headers['X-Hub-Signature'] = Crypto.createHmac('sha256', sub.secret).update(JSON.stringify(content)).digest('hex')
@@ -440,22 +442,24 @@ Server.prototype._handlePublishRequest = function (req, reply) {
   } = this.server.mongo
   this.subscriptionsCollection = db.collection('subscriptions')
 
-  this._fetchTopicContent(topicUrl)
-    .then((content) => {
-      return this.subscriptionsCollection.find({
-        topic: topicUrl
-      }).toArray().then((subscriptions) => {
-        const requests = []
-        subscriptions.forEach((s) => {
-          if (s.protocol === 'ws') {
-            requests.push(this._distributeContentWs(s, content))
-          } else {
-            requests.push(this._distributeContentHttp(s, content))
-          }
-        })
-        return Promise.all(requests)
-      })
+  return this.subscriptionsCollection.find({
+    topic: topicUrl
+  }).toArray().then((subscriptions) => {
+    const requests = []
+    subscriptions.forEach((sub) => {
+      if (sub.protocol === 'ws') {
+        requests.push(this._fetchTopicContent(sub).then((content) => {
+          return this._distributeContentWs(sub, content)
+        }))
+      } else {
+        requests.push(this._fetchTopicContent(sub).then((content) => {
+          return this._distributeContentHttp(sub, content)
+        }))
+      }
     })
+    return Promise.all(requests)
+  })
+
     .then((content) => {
       reply.code(200).send()
     })
@@ -471,8 +475,16 @@ Server.prototype._handlePublishRequest = function (req, reply) {
  * @param {any} topic
  * @returns
  */
-Server.prototype._fetchTopicContent = function (topic) {
-  return this.httpClient.get(topic).then((response) => {
+Server.prototype._fetchTopicContent = function (sub) {
+  const headers = {}
+
+  if (sub.format === 'json') {
+    headers.Accept = 'application/json'
+  }
+
+  return this.httpClient.get(sub.topic, {
+    headers
+  }).then((response) => {
     return response.data
   })
     .catch((error) => {
@@ -492,6 +504,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const topic = req.body['hub.topic']
   const leaseSeconds = req.body['hub.lease_seconds']
   const secret = req.body['hub.secret']
+  const format = req.body['hub.format'] || 'json'
   const protocol = 'http'
   const challenge = this.hyperid()
 
@@ -500,7 +513,8 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
     topic,
     leaseSeconds,
     secret,
-    protocol
+    protocol,
+    format
   }
 
   this._verifyIntent(sub.callbackUrl, mode, sub.topic, challenge).then((intent) => {
@@ -599,6 +613,7 @@ Server.prototype._createSubscription = function (subscription, cb) {
         secret: subscription.secret,
         protocol: subscription.protocol,
         token: subscription.token,
+        format: subscription.format,
         createdAt: new Date()
       }).catch((err) => {
         return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be created'))

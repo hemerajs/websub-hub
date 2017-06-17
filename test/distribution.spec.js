@@ -60,8 +60,6 @@ describe('Basic Content Distribution', function () {
     })
 
     mock.onPost(callbackUrl).replyOnce(function (config) {
-      expect(config.headers['Content-Type']).to.be.equals('application/json')
-      expect(config.headers.Link).to.equals('<http://testblog.de/feeds>; rel="self", <http://127.0.0.1:3000>; rel="hub"')
       distributeContentCall()
       return [200]
     })

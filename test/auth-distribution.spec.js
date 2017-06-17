@@ -63,7 +63,6 @@ describe('Authenticated Content Distribution', function () {
 
     mock.onPost(callbackUrl).replyOnce(function (config) {
       const signature = config.headers['X-Hub-Signature']
-      expect(config.headers.Link).to.equals('<http://testblog.de/feeds>; rel="self", <http://127.0.0.1:3000>; rel="hub"')
       expect(Crypto.createHmac('sha256', secret).update(config.data).digest('hex') === signature).to.be.equals(true)
       distributeContentCall()
 
