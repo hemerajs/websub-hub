@@ -360,9 +360,8 @@ Server.prototype._distributeContentWs = function (sub, content) {
   response.success = true
   response['hub.mode'] = 'update'
   response.result = content
-  // The request must include at least one Link Header
-  response.headers['Link'] = `<${sub.topic}>; rel="self", <${this.options.hubUrl}>; rel="hub"`
-  response.headers['Content-Type'] = 'application/json'
+  response.headers.topic = sub.topic
+  response.headers.hub = this.options.hubUrl
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
   if (sub.secret) {
     response.headers['X-Hub-Signature'] = Crypto.createHmac('sha256', sub.secret).update(JSON.stringify(content)).digest('hex')
