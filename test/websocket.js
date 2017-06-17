@@ -2,7 +2,7 @@
 
 const Code = require('code')
 const expect = Code.expect
-const Hub = require('./../packages/websub-hub')
+const Hub = require('./../packages/websub-hub').server
 const MongoInMemory = require('mongo-in-memory')
 const MockAdapter = require('axios-mock-adapter')
 const Websocket = require('ws')

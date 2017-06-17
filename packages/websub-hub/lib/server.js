@@ -1,6 +1,6 @@
 'use strict'
 
-const Schemas = require('./lib/schemas')
+const Schemas = require('./schemas')
 const Fastify = require('fastify')
 const FormBody = require('body/form')
 const Axios = require('axios')
@@ -9,7 +9,7 @@ const Boom = require('boom')
 const Util = require('util')
 const Hoek = require('hoek')
 const Pino = require('pino')
-const Serializer = require('./lib/serializer')
+const Serializer = require('./serializer')
 const Promisify = require('es6-promisify')
 const EventEmitter = require('events')
 const Crypto = require('crypto')
@@ -179,6 +179,17 @@ Server.prototype._createWsConnection = function () {
         const challenge = this.hyperid()
         const protocol = 'ws'
 
+        const sub = {
+          callbackUrl,
+          mode,
+          topic,
+          leaseSeconds,
+          secret,
+          protocol,
+          format,
+          token: req.webhubToken
+        }
+
         this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
           if (intent === this.intentStates.DECLINED) {
             return Promise.reject(Boom.forbidden('Subscriber has declined'))
@@ -188,21 +199,12 @@ Server.prototype._createWsConnection = function () {
         })
         .then(() => {
           this.log.info('Intent: %s for callback %s verified', mode, callbackUrl)
-          this._createSubscription({
-            callbackUrl,
-            mode,
-            topic,
-            leaseSeconds,
-            secret,
-            protocol,
-            format,
-            token: req.webhubToken
-          })
-          send({ success: true, 'hub.mode': mode })
+          this._createSubscription(sub)
+          send({ success: true, 'hub.mode': mode, 'hub.callback': callbackUrl, 'hub.topic': topic })
         })
         .catch((err) => {
           this.log.error('Error: %s, Mode: %s, Callback: %s', err.message, mode, callbackUrl)
-          send({ success: false, 'hub.mode': mode })
+          send({ success: false, 'hub.mode': mode, 'hub.callback': callbackUrl, 'hub.topic': topic })
         })
       },
       (err) => {
@@ -236,11 +238,11 @@ Server.prototype._createWsConnection = function () {
           this.log.info('Intent: %s for callback %s verified', mode, callbackUrl)
           this._unsubscribe(sub)
 
-          send({ success: true, 'hub.mode': mode })
+          send({ success: true, 'hub.mode': mode, 'hub.callback': callbackUrl, 'hub.topic': topic })
         })
         .catch((err) => {
           this.log.error('Error: %s, Mode: %s, Callback: %s', err.message, mode, callbackUrl)
-          send({ success: false, 'hub.mode': mode })
+          send({ success: false, 'hub.mode': mode, 'hub.callback': callbackUrl, 'hub.topic': topic })
         })
       },
       (err) => {

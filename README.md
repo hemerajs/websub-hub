@@ -39,38 +39,38 @@ $ websub-hub -l info -m mongodb://localhost:27017/hub
 ```
 $ node examples\server.js
 $ node examples\feed.js
-$ node examples\subscriber.js
+$ node examples\callback.js
 ```
 
 ## Subscribe
 As soon as you want to subscribe to a topic you can initiate a subscription request. The subscriber has to verify that action as mentioned above.
 
-```curl
-curl -X POST \
-  http://localhost:3000/subscribe \
-  -H 'cache-control: no-cache' \
-  -H 'content-type: application/x-www-form-urlencoded' \
-  -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=subscribe'
+```js
+const Subscriber = require('websub-hub').subscriber
+const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
+s.subscribe({
+  topic: 'http://127.0.0.1:6000',
+  callbackUrl: 'http://127.0.0.1:5000'
+}).then((response) => {})
 ```
 
 ## Unsubscribe
 
-```curl
-curl -X POST \
-  http://localhost:3000/unsubscribe \
-  -H 'cache-control: no-cache' \
-  -H 'content-type: application/x-www-form-urlencoded' \
-  -d 'hub.topic=http%3A%2F%2F127.0.0.1%3A6000&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=unsubscribe'
+```js
+const Subscriber = require('websub-hub').subscriber
+const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
+s.unsubscribe({
+  topic: 'http://127.0.0.1:6000',
+  callbackUrl: 'http://127.0.0.1:5000'
+}).then((response) => {})
 ```
 
 ## Publish
 
-```curl
-curl -X POST \
-  http://localhost:3000/publish \
-  -H 'cache-control: no-cache' \
-  -H 'content-type: application/x-www-form-urlencoded' \
-  -d 'hub.url=http%3A%2F%2F127.0.0.1%3A6000&hub.mode=publish'
+```js
+const Publisher = require('websub-hub').publisher
+const p = new Publisher({ hubUrl: 'http://127.0.0.1:3000' })
+p.publish('http://127.0.0.1:6000').then((response) => {})
 ```
 
 ## Test

@@ -1,6 +1,6 @@
 'use strict'
 
-const WebSubHub = require('../packages/websub-hub')
+const WebSubHub = require('../packages/websub-hub').server
 
 const hub = new WebSubHub({
   port: 3000,
