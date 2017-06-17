@@ -36,8 +36,11 @@ $ websub-hub -l info -m mongodb://localhost:27017/hub
 ```
 ## Getting started
 
-- Your `callbackUrl` endpoint should return the `hub.challenge` with 2xx statusCode to verify the subscription request.
-- The topic represents the feed you want to subscribe.
+```
+$ node examples\server.js
+$ node examples\feed.js
+$ node examples\subscriber.js
+```
 
 ## Subscribe
 As soon as you want to subscribe to a topic you can initiate a subscription request. The subscriber has to verify that action as mentioned above.
@@ -49,35 +52,35 @@ curl -X POST \
   -H 'content-type: application/x-www-form-urlencoded' \
   -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=subscribe'
 ```
-## Unsubscribe
 
-As soon as you want to unsubscribe from a topic you can initiate a unsubscription request. The subscriber has to verify that action as mentioned above. 
+## Subscribe
+
+```curl
+curl -X POST \
+  http://localhost:3000/subscribe \
+  -H 'cache-control: no-cache' \
+  -H 'content-type: application/x-www-form-urlencoded' \
+  -d 'hub.topic=http%3A%2F%2F127.0.0.1%3A6000&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=subscribe'
+```
+## Unsubscribe
 
 ```curl
 curl -X POST \
   http://localhost:3000/unsubscribe \
   -H 'cache-control: no-cache' \
   -H 'content-type: application/x-www-form-urlencoded' \
-  -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=unsubscribe'
+  -d 'hub.topic=http%3A%2F%2F127.0.0.1%3A6000&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=unsubscribe'
 ```
 
 ## Publish
-
-As soon as you want to notify about updates you can initiate a publishing request which will distribute your content across all subscribers.
 
 ```curl
 curl -X POST \
   http://localhost:3000/publish \
   -H 'cache-control: no-cache' \
   -H 'content-type: application/x-www-form-urlencoded' \
-  -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.mode=publish'
+  -d 'hub.url=http%3A%2F%2F127.0.0.1%3A6000&hub.mode=publish'
 ```
-
-## TODO
-- Content distribution
-  - Reply at failure
-  - Content Type
-- Discovery
 
 ## Test
 ```

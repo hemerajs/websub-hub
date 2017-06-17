@@ -23,8 +23,10 @@
   "devDependencies": {
     "axios": "0.16.2",
     "axios-mock-adapter": "1.8.1",
+    "body-parser": "^1.17.2",
     "code": "4.1.0",
     "coveralls": "2.13.1",
+    "express": "^4.15.3",
     "istanbul": "0.4.5",
     "jsonwebtoken": "7.4.1",
     "lerna": "2.0.0-rc.5",
