@@ -114,7 +114,7 @@ Server.prototype._startWsPingTimer = function () {
   this.wsPingTimer = setInterval(() => {
     this.wss.clients.forEach(function each (ws) {
       if (ws.isAlive === false) {
-        self._cleanWsSubscriptionsByConnId(ws._webhubConnId).then(x => ws.terminate())
+        self._cleanWsSubscriptionsByClient(ws.webhubToken.client).then(x => ws.terminate())
         return
       }
 
@@ -415,9 +415,9 @@ Server.prototype._cancelSubscription = function (subscription) {
  * @param {any} connectionId
  * @returns
  */
-Server.prototype._cleanWsSubscriptionsByConnId = function (connectionId) {
+Server.prototype._cleanWsSubscriptionsByClient = function (client) {
   return this.subscriptionCollection.deleteMany({
-    connectionId
+    'token.client': client
   }).catch((error) => {
     this.log.error({
       internalError: error
