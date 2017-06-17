@@ -298,13 +298,10 @@ Server.prototype._verifyIntent = function (callbackUrl, mode, topic, challenge, 
     'hub.challenge': challenge
   })
     .then((response) => {
-      if (response.status >= 200 && response.status < 300) {
-        if (response.data['hub.challenge'] === challenge) {
-          return this.intentStates.ACCEPTED
-        }
-        return this.intentStates.DECLINED
+      if (response.data['hub.challenge'] === challenge) {
+        return this.intentStates.ACCEPTED
       }
-      return this.intentStates.UNKNOWN
+      return this.intentStates.DECLINED
     })
     .catch(() => {
       return this.intentStates.UNKNOWN
