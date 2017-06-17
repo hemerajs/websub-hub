@@ -496,12 +496,14 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const challenge = this.hyperid()
 
   const sub = {
-    topic,
     callbackUrl,
+    topic,
+    leaseSeconds,
+    secret,
     protocol
   }
 
-  this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
+  this._verifyIntent(sub.callbackUrl, mode, sub.topic, challenge).then((intent) => {
     if (intent === this.intentStates.DECLINED) {
       return Promise.reject(Boom.forbidden('Subscriber has declined'))
     } else if (intent === this.intentStates.UNKNOWN) {
@@ -511,14 +513,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
     .then(() => {
       this.log.info('Intent: %s for callback %s verified', mode, callbackUrl)
       if (mode === this.modes.SUBSCRIBE) {
-        return this._createSubscription({
-          callbackUrl,
-          mode,
-          topic,
-          leaseSeconds,
-          secret,
-          protocol
-        })
+        return this._createSubscription(sub)
       } else {
         return this._unsubscribe(sub)
       }
