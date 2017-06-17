@@ -18,12 +18,12 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 
 ## Expectations
 
-- **Highly performant:** A single node should be able to handle thousand of subscriptions.
-- **Scalable:** Should be easy to scale the hub. We choose monogdb as distributed storage.
-- **Efficient:** Should be able to distribute only delta updates when possible.
-- **Websocket:** Should be able to establish a websocket connection for best performance.
+- **Highly performant:** A single node can handle thousand of subscriptions.
+- **Scalable:** Scale the hub in minutes. We choose monogdb as distributed storage.
+- **Efficient:** Distribute only delta updates.
+- **Websocket:** Use websockets to get updates in realtime.
 - **Standardized** We trying to be compliant with the W3C Websub specification.
-- **Developer friendly** It should be easy to start and configure the hub and we want to provide an elegant api.
+- **Developer friendly** Providing an easy interface to configure and using the hub
 
 ## Specification
 https://w3c.github.io/websub/
