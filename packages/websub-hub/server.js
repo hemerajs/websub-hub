@@ -13,6 +13,7 @@ const Serializer = require('./lib/serializer')
 const Promisify = require('es6-promisify')
 const EventEmitter = require('events')
 const Crypto = require('crypto')
+const Jwt = require('jsonwebtoken')
 const PromiseRetry = require('promise-retry')
 const Url = require('url')
 const Rx = require('rxjs')
@@ -25,6 +26,13 @@ const defaultOptions = {
   timeout: 2000,
   logLevel: 'fatal',
   hubUrl: 'http://127.0.0.1:3000',
+  ws: {
+    pingInterval: 30000
+  },
+  jwt: {
+    secret: '',
+    options: {}
+  },
   fastify: {
     logger: {
       level: 'fatal'
@@ -59,8 +67,6 @@ function Server (options) {
   this.hyperid = Hyperid()
   this._addContentTypeParser()
   this._createDbConnection()
-  this._createWsConnection()
-  this.wsClients = new Map()
   this.intentStates = {
     ACCEPTED: 'accepted',
     DECLINED: 'declined',
@@ -71,7 +77,6 @@ function Server (options) {
     UNSUBSRIBE: 'unsubscribe'
   }
   this._registerHandlers()
-  this.outgoingObservable = new Rx.Subject()
 
   const pretty = Pino.pretty()
   pretty.pipe(process.stdout)
@@ -96,43 +101,162 @@ Server.prototype._createDbConnection = function () {
     if (err) {
       this.log.error(err, 'Could not connect to Mongodb')
     }
+    const {
+      db
+    } = this.server.mongo
+    this.subscriptionCollection = db.collection('subscriptions')
+    this._createWsConnection()
   })
+}
+
+Server.prototype._startWsPingTimer = function () {
+  const self = this
+  this.wsPingTimer = setInterval(() => {
+    this.wss.clients.forEach(function each (ws) {
+      if (ws.isAlive === false) {
+        self._cleanWsSubscriptionsByConnId(ws._webhubConnId).then(x => ws.terminate())
+        return
+      }
+
+      ws.isAlive = false
+      ws.ping('', false, true)
+    })
+  }, this.options.ws.pingInterval)
 }
 
 Server.prototype._createWsConnection = function () {
   const self = this
 
-  function verifyWsClient (info) {
-    return true
+  function verifyWsClient (info, done) {
+    const location = Url.parse(info.req.url, true)
+    Jwt.verify(location.query.token, self.options.jwt.secret, self.options.jwt.options, (err, decoded) => {
+      if (err) {
+        done(false)
+      } else {
+        info.req.webhubToken = decoded
+        done(true)
+      }
+    })
+  }
+
+  function heartbeat () {
+    this.isAlive = true
   }
 
   this.wss = new Websocket.Server({
     perMessageDeflate: false,
     server: this.server.server,
-    verifyClient: verifyWsClient
+    verifyClient: verifyWsClient,
+    clientTracking: true
   })
 
   this.wss.on('connection', (ws, req) => {
     this.log.info('New Websocket client')
 
+    ws.isAlive = true
+    ws.on('pong', heartbeat)
+    this._startWsPingTimer()
+
+    ws.webhubToken = req.webhubToken
+
+    function send (payload) {
+      if (ws.readyState === Websocket.OPEN) {
+        ws.send(JSON.stringify(payload))
+      }
+    }
+
     var source = Rx.Observable.fromEvent(ws, 'message', (e) => JSON.parse(e.data))
 
-    source.filter(x => x['hub.mode'] === 'ping').subscribe(
-      function (x) {
-        self.log.info('Ping request')
-        ws.send('pong')
+    source.filter(x => x['hub.mode'] === 'subscribe').subscribe(
+      (payload) => {
+        self.log.info('Subscription request')
+        const callbackUrl = payload['hub.callback']
+        const mode = payload['hub.mode']
+        const topic = payload['hub.topic']
+        const leaseSeconds = payload['hub.lease_seconds']
+        const secret = payload['hub.secret']
+        const challenge = this.hyperid()
+        const protocol = 'ws'
+
+        this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
+          if (intent === this.intentStates.DECLINED) {
+            return Promise.reject(Boom.forbidden('Subscriber has declined'))
+          } else if (intent === this.intentStates.UNKNOWN) {
+            return Promise.reject(Boom.forbidden('Subscriber has return an invalid answer'))
+          }
+        })
+        .then(() => {
+          this.log.info('Intent: %s for callback %s verified', mode, callbackUrl)
+          this._createSubscription({
+            callbackUrl,
+            mode,
+            topic,
+            leaseSeconds,
+            secret,
+            protocol,
+            token: req.webhubToken
+          })
+          send({ success: true, 'hub.mode': mode })
+        })
+        .catch((err) => {
+          this.log.error('Error: %s, Mode: %s, Callback: %s', err.message, mode, callbackUrl)
+          send({ success: false, 'hub.mode': mode })
+        })
       },
-      function (err) {
-        self.log.error(err, 'Receiving websocket message')
+      (err) => {
+        self.log.error(err, 'Subscription request')
+        send({ success: false, error: err })
       })
 
-    source.filter(x => x['hub.mode'] === 'subscribe').subscribe(
-      function (x) {
-        self.log.info('Subscription request')
-        ws.send('pong')
+    source.filter(x => x['hub.mode'] === 'unsubscribe').subscribe(
+      (payload) => {
+        self.log.info('Unsubscription request')
+        const mode = payload['hub.mode']
+        const callbackUrl = payload['hub.callback']
+        const topic = payload['hub.topic']
+        const challenge = this.hyperid()
+
+        this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
+          if (intent === this.intentStates.DECLINED) {
+            return Promise.reject(Boom.forbidden('Subscriber has declined'))
+          } else if (intent === this.intentStates.UNKNOWN) {
+            return Promise.reject(Boom.forbidden('Subscriber has return an invalid answer'))
+          }
+        })
+        .then(() => {
+          this.log.info('Intent: %s for callback %s verified', mode, callbackUrl)
+          this._unsubscribe({
+            topic,
+            callbackUrl
+          })
+
+          send({ success: true, 'hub.mode': mode })
+        })
+        .catch((err) => {
+          this.log.error('Error: %s, Mode: %s, Callback: %s', err.message, mode, callbackUrl)
+          send({ success: false, 'hub.mode': mode })
+        })
       },
-      function (err) {
-        self.log.error(err, 'Receiving websocket message')
+      (err) => {
+        self.log.error(err, 'Unsubscription request')
+        send({ success: false, error: err })
+      })
+
+    source.filter(x => x['hub.mode'] === 'list').subscribe(
+      (payload) => {
+        self.log.info('Subscription list request')
+        const mode = payload['hub.mode']
+        this._getAllActiveSubscription().then((list) => {
+          send({
+            success: true,
+            'hub.mode': mode,
+            result: list
+          })
+        })
+      },
+      (err) => {
+        self.log.error(err, 'Unsubscription request')
+        send({ success: false, error: err })
       })
   })
 }
@@ -213,7 +337,7 @@ Server.prototype._distributeContentHttp = function (sub, content) {
       url: sub.callbackUrl,
       data: content
     })
-      .catch(retry)
+        .catch(retry)
   }, this.options.retry)
     .then((response) => this.log.debug('Sub: %s respond with %s', sub._id, response.status))
     .catch((error) => {
@@ -236,7 +360,9 @@ Server.prototype._distributeContentHttp = function (sub, content) {
 Server.prototype._distributeContentWs = function (sub, content) {
   const response = {}
   response.headers = {}
-  response.data = content
+  response.success = true
+  response['hub.mode'] = 'update'
+  response.result = content
   // The request must include at least one Link Header
   response.headers['Link'] = `<${sub.topic}>; rel="self", <${this.options.hubUrl}>; rel="hub"`
   response.headers['Content-Type'] = 'application/json'
@@ -244,20 +370,26 @@ Server.prototype._distributeContentWs = function (sub, content) {
   if (sub.secret) {
     response.headers['X-Hub-Signature'] = Crypto.createHmac('sha256', sub.secret).update(JSON.stringify(content)).digest('hex')
   }
-  const key = sub.callbackUrl + ':' + sub.topic
-  const client = this.wsClients.get(key)
 
-  if (client) {
-    try {
-      client.send(JSON.stringify(response))
-    } catch (err) {
-      this.log.error(err)
+  this.log.info('%d Websocket clients', this.wss.clients.size)
+
+  for (let client of this.wss.clients.values()) {
+    if (client.webhubToken.user === sub.token.user) {
+      this.log.info('Websocket client matched %s', sub.token.client)
+      try {
+        if (client.readyState === Websocket.OPEN) {
+          this.log.info('Distribute content to websocket client')
+          client.send(JSON.stringify(response))
+          return Promise.resolve()
+        }
+      } catch (err) {
+        this.log.error(err)
+        return Promise.resolve()
+      }
+    } else {
+      this.log.warn('No Websocket client match %s <-> %s', client.webhubToken.client, sub.token.client)
     }
-  } else {
-    this.log.info('Ws Client could not be found!')
   }
-
-  return Promise.resolve()
 }
 
 /**
@@ -267,7 +399,7 @@ Server.prototype._distributeContentWs = function (sub, content) {
  * @returns
  */
 Server.prototype._cancelSubscription = function (subscription) {
-  return this.subscriptionsCollection.findOneAndDelete({
+  return this.subscriptionCollection.findOneAndDelete({
     callbackUrl: subscription.callbackUrl,
     topic: subscription.topic
   }).catch((error) => {
@@ -280,13 +412,31 @@ Server.prototype._cancelSubscription = function (subscription) {
 /**
  *
  *
+ * @param {any} connectionId
+ * @returns
+ */
+Server.prototype._cleanWsSubscriptionsByConnId = function (connectionId) {
+  return this.subscriptionCollection.deleteMany({
+    connectionId
+  }).catch((error) => {
+    this.log.error({
+      internalError: error
+    }, 'Subscriptions could not be deleted')
+  })
+}
+
+/**
+ *
+ *
  * @param {any} req
  * @param {any} reply
  */
 Server.prototype._handlePublishRequest = function (req, reply) {
   const topicUrl = req.body['hub.url']
 
-  const {db} = this.server.mongo
+  const {
+    db
+  } = this.server.mongo
   this.subscriptionsCollection = db.collection('subscriptions')
 
   this._fetchTopicContent(topicUrl)
@@ -344,9 +494,6 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const protocol = req.body['hub.protocol']
   const challenge = this.hyperid()
 
-  const {db} = this.server.mongo
-  this.subscriptionCollection = db.collection('subscriptions')
-
   this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
     if (intent === this.intentStates.DECLINED) {
       return Promise.reject(Boom.forbidden('Subscriber has declined'))
@@ -355,6 +502,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
     }
   })
     .then(() => {
+      this.log.info('Intent: %s for callback %s verified', mode, callbackUrl)
       if (mode === this.modes.SUBSCRIBE) {
         return this._createSubscription({
           callbackUrl,
@@ -362,16 +510,25 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
           topic,
           leaseSeconds,
           secret,
-          protocol})
+          protocol
+        })
       } else {
         return this._unsubscribe(topic, callbackUrl)
       }
     })
     .then(x => reply.code(200).send())
     .catch(err => {
-      this.log.error(err)
       reply.code(err.output.statusCode).send(err)
     })
+}
+
+Server.prototype._getAllActiveSubscription = function (req, reply) {
+  const cursor = this.subscriptionCollection.find({})
+  cursor.project({
+    secret: 0
+  })
+
+  return cursor.toArray()
 }
 
 /**
@@ -381,14 +538,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
  * @param {any} reply
  */
 Server.prototype._handleSubscriptionListRequest = function (req, reply) {
-  const {db} = this.server.mongo
-  const subscriptionCollection = db.collection('subscriptions')
-  const cursor = subscriptionCollection.find({})
-  cursor.project({
-    secret: 0
-  })
-
-  reply.code(200).send(cursor.toArray())
+  reply.code(200).send(this._getAllActiveSubscription())
 }
 
 /**
@@ -445,6 +595,7 @@ Server.prototype._createSubscription = function (subscription, cb) {
         leaseSeconds: subscription.leaseSeconds,
         secret: subscription.secret,
         protocol: subscription.protocol,
+        token: subscription.token,
         createdAt: new Date()
       }).catch((err) => {
         return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be created'))
@@ -457,7 +608,8 @@ Server.prototype._createSubscription = function (subscription, cb) {
       }, {
         $set: {
           leaseSeconds: subscription.leaseSeconds,
-          updatedAt: new Date()
+          updatedAt: new Date(),
+          token: subscription.token
         }
       }).catch((err) => {
         return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be created'))

@@ -2,11 +2,12 @@
   "private": true,
   "author": "Dustin Deus <deusdustin@gmail.com> (http://www.starptech.de)",
   "scripts": {
-    "test": "mocha -t 3000",
+    "test": "nyc mocha -t 3000",
     "test-watch": "mocha -t 3000 -w",
     "bootstrap": "lerna bootstrap",
     "lint": "standard /packages/**/*.js --fix",
-    "setup": "npm i && npm run bootstrap"
+    "setup": "npm i && npm run bootstrap",
+    "coverage": "npm run test && nyc report --reporter=html"
   },
   "standard": {
     "ignore": [
@@ -23,12 +24,16 @@
     "axios": "0.16.2",
     "axios-mock-adapter": "1.8.1",
     "code": "4.1.0",
+    "coveralls": "2.13.1",
+    "istanbul": "0.4.5",
+    "jsonwebtoken": "7.4.1",
     "lerna": "2.0.0-rc.5",
     "mocha": "3.4.2",
     "mongo-in-memory": "0.0.5",
+    "nyc": "11.0.2",
     "sinon": "2.3.4",
     "snazzy": "7.0.0",
     "standard": "10.0.2",
-    "websocket-stream": "^5.0.0"
+    "ws": "3.0.0"
   }
 }
