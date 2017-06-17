@@ -214,7 +214,14 @@ Server.prototype._createWsConnection = function () {
         const mode = payload['hub.mode']
         const callbackUrl = payload['hub.callback']
         const topic = payload['hub.topic']
+        const protocol = 'ws'
         const challenge = this.hyperid()
+
+        const sub = {
+          topic,
+          callbackUrl,
+          protocol
+        }
 
         this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
           if (intent === this.intentStates.DECLINED) {
@@ -225,10 +232,7 @@ Server.prototype._createWsConnection = function () {
         })
         .then(() => {
           this.log.info('Intent: %s for callback %s verified', mode, callbackUrl)
-          this._unsubscribe({
-            topic,
-            callbackUrl
-          })
+          this._unsubscribe(sub)
 
           send({ success: true, 'hub.mode': mode })
         })
@@ -397,7 +401,8 @@ Server.prototype._distributeContentWs = function (sub, content) {
 Server.prototype._cancelSubscription = function (subscription) {
   return this.subscriptionCollection.findOneAndDelete({
     callbackUrl: subscription.callbackUrl,
-    topic: subscription.topic
+    topic: subscription.topic,
+    protocol: subscription.protocol
   }).catch((error) => {
     this.log.error({
       internalError: error
@@ -487,8 +492,14 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const topic = req.body['hub.topic']
   const leaseSeconds = req.body['hub.lease_seconds']
   const secret = req.body['hub.secret']
-  const protocol = req.body['hub.protocol']
+  const protocol = 'http'
   const challenge = this.hyperid()
+
+  const sub = {
+    topic,
+    callbackUrl,
+    protocol
+  }
 
   this._verifyIntent(callbackUrl, mode, topic, challenge).then((intent) => {
     if (intent === this.intentStates.DECLINED) {
@@ -509,7 +520,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
           protocol
         })
       } else {
-        return this._unsubscribe(topic, callbackUrl)
+        return this._unsubscribe(sub)
       }
     })
     .then(x => reply.code(200).send())
@@ -542,13 +553,13 @@ Server.prototype._handleSubscriptionListRequest = function (req, reply) {
  *
  * @param {any} topic
  * @param {any} callbackUrl
- * @param {any} cb
  * @returns
  */
-Server.prototype._unsubscribe = function (topic, callbackUrl, cb) {
+Server.prototype._unsubscribe = function (sub) {
   return this.subscriptionCollection.findOneAndDelete({
-    topic: topic,
-    callbackUrl: callbackUrl
+    topic: sub.topic,
+    callbackUrl: sub.callbackUrl,
+    protocol: sub.protocol
   })
     .catch((err) => {
       return Promise.reject(Boom.wrap(err, 500, 'Subscription could not be deleted'))
@@ -562,10 +573,11 @@ Server.prototype._unsubscribe = function (topic, callbackUrl, cb) {
  * @param {any} callbackUrl
  * @returns
  */
-Server.prototype._isDuplicateSubscription = function (topic, callbackUrl) {
+Server.prototype._isDuplicateSubscription = function (sub) {
   return this.subscriptionCollection.findOne({
-    topic: topic,
-    callbackUrl: callbackUrl
+    topic: sub.topic,
+    callbackUrl: sub.callbackUrl,
+    protocol: sub.protocol
   }).then((result) => {
     return result !== null
   }).catch((err) => {
@@ -581,7 +593,7 @@ Server.prototype._isDuplicateSubscription = function (topic, callbackUrl) {
  * @returns
  */
 Server.prototype._createSubscription = function (subscription, cb) {
-  return this._isDuplicateSubscription(subscription.topic, subscription.callbackUrl).then((isDuplicate) => {
+  return this._isDuplicateSubscription(subscription).then((isDuplicate) => {
     if (isDuplicate === false) {
       // create new subscription
       return this.subscriptionCollection.insertOne({
@@ -600,7 +612,8 @@ Server.prototype._createSubscription = function (subscription, cb) {
       // renew leaseSeconds subscription time
       return this.subscriptionCollection.findOneAndUpdate({
         callbackUrl: subscription.callbackUrl,
-        topic: subscription.topic
+        topic: subscription.topic,
+        protocol: subscription.protocol
       }, {
         $set: {
           leaseSeconds: subscription.leaseSeconds,

@@ -9,8 +9,7 @@ module.exports.subscriptionRequest = {
       'hub.mode': { enum: ['subscribe', 'unsubscribe'] },
       'hub.topic': { type: 'string' },
       'hub.lease_seconds': { type: 'integer' },
-      'hub.secret': { type: 'string' },
-      'hub.protocol': { enum: ['http', 'ws'], 'default': 'http' }
+      'hub.secret': { type: 'string' }
     },
     'required': [ 'hub.topic', 'hub.mode', 'hub.callback' ]
   }

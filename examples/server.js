@@ -5,6 +5,9 @@ const WebSubHub = require('../packages/websub-hub')
 const hub = new WebSubHub({
   port: 3000,
   logLevel: 'info',
+  jwt: {
+    secret: '123456'
+  },
   mongo: {
     url: 'mongodb://localhost:27017/hub'
   }
