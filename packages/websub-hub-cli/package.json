@@ -1,6 +1,6 @@
 {
   "name": "websub-hub-cli",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "CLI for the WebSub Hub Server",
   "main": "cli.js",
   "repository": {
@@ -25,7 +25,7 @@
     "node": ">=6"
   },
   "devDependencies": {
-    "websub-hub": "^0.0.3"
+    "websub-hub": "^0.0.4"
   },
   "dependencies": {
     "minimist": "1.2.0"
