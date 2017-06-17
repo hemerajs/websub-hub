@@ -53,15 +53,6 @@ curl -X POST \
   -d 'hub.topic=http%3A%2F%2Fmyblog.de%2Ffeeds&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=subscribe'
 ```
 
-## Subscribe
-
-```curl
-curl -X POST \
-  http://localhost:3000/subscribe \
-  -H 'cache-control: no-cache' \
-  -H 'content-type: application/x-www-form-urlencoded' \
-  -d 'hub.topic=http%3A%2F%2F127.0.0.1%3A6000&hub.callback=http%3A%2F%2F127.0.0.1%3A5000&hub.mode=subscribe'
-```
 ## Unsubscribe
 
 ```curl
