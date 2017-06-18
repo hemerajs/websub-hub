@@ -18,6 +18,9 @@ const PromiseRetry = require('promise-retry')
 const Url = require('url')
 const Rx = require('rxjs')
 const Websocket = require('ws')
+const JSONStream = require('JSONStream')
+const MimeTypes = require('mime-types')
+const Expat = require('node-expat')
 
 const defaultOptions = {
   name: 'hub',
@@ -337,7 +340,7 @@ Server.prototype._distributeContentHttp = function (sub, content) {
       method: 'post',
       headers,
       url: sub.callbackUrl,
-      data: content
+      data: content.stream
     })
     .catch(retry)
   }, this.options.retry)
@@ -473,7 +476,7 @@ Server.prototype._handlePublishRequest = function (req, reply) {
 
 /**
  *
- *
+ * @TODO support streaming
  * @param {any} topic
  * @returns
  */
@@ -482,18 +485,67 @@ Server.prototype._fetchTopicContent = function (sub) {
 
   if (sub.format === 'json') {
     headers.Accept = 'application/json'
+  } else {
+    headers.Accept = 'application/rss+xml'
   }
 
-  return this.httpClient.get(sub.topic, {
+  return this.httpClient({
+    method: 'get',
+    url: sub.topic,
+    responseType: 'stream',
     headers
   }).then((response) => {
-    return response.data
+    const stream = response.data
+
+    let contentType = 'json'
+    // check content type
+    if (response.headers) {
+      contentType = MimeTypes.extension(response.headers['Content-Type'])
+    }
+
+    return this._getUpdatedDate(stream, contentType).then((updated) => {
+      return {
+        updated,
+        stream,
+        contentType
+      }
+    })
   })
     .catch((error) => {
+      this.log.error(error)
       return Promise.reject(Boom.wrap(error, error.response.status))
     })
 }
 
+Server.prototype._getUpdatedDate = function (stream, contentType) {
+  return new Promise((resolve, reject) => {
+    if (contentType === 'json') {
+      const jsonParser = JSONStream.parse('updated')
+      const parser = stream.pipe(jsonParser)
+      parser.on('data', function (text) {
+        resolve(new Date(text))
+        parser.destroy()
+      })
+    } else if (contentType === 'xml' || contentType === 'rss') {
+      let onUpdatedField = false
+      let abort = false
+      const xmlParser = Expat.createParser()
+      const parser = stream.pipe(xmlParser)
+      parser.on('startElement', function (name, attrs) {
+        if (name === 'updated') {
+          onUpdatedField = true
+        }
+      })
+      parser.on('text', function (text) {
+        if (onUpdatedField && abort === false) {
+          resolve(new Date(text))
+          parser.destroy()
+          abort = true
+        }
+      })
+    }
+  })
+}
 /**
  *
  *
@@ -511,6 +563,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
   const challenge = this.hyperid()
 
   const sub = {
+    mode,
     callbackUrl,
     topic,
     leaseSeconds,
@@ -519,7 +572,7 @@ Server.prototype._handleSubscriptionRequest = function (req, reply) {
     format
   }
 
-  this._verifyIntent(sub.callbackUrl, mode, sub.topic, challenge).then((intent) => {
+  this._verifyIntent(sub.callbackUrl, sub.mode, sub.topic, challenge).then((intent) => {
     if (intent === this.intentStates.DECLINED) {
       return Promise.reject(Boom.forbidden('Subscriber has declined'))
     } else if (intent === this.intentStates.UNKNOWN) {

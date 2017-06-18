@@ -10,6 +10,7 @@ app.get('/', function (req, res) {
     'title': 'My Example Feed',
     'home_page_url': 'https://example.org/',
     'feed_url': 'https://example.org/feed.json',
+    'updated': '2003-12-13T18:30:02Z',
     'items': [
       {
         'id': '2',

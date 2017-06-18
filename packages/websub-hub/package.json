@@ -34,10 +34,12 @@
     "fastify-mongodb": "0.1.0",
     "hoek": "4.1.1",
     "hyperid": "1.2.0",
+    "jsonstream": "1.0.3",
     "jsonwebtoken": "7.4.1",
+    "mime-types": "2.1.15",
+    "node-expat": "2.3.15",
     "promise-retry": "1.1.1",
     "rxjs": "5.4.0",
-    "websub-hub-cli": "^0.0.4",
     "ws": "3.0.0"
   }
 }
