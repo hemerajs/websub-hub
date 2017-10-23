@@ -19,7 +19,7 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 ## Expectations
 
 - **Highly performant:** A single node can handle thousands of subscriptions.
-- **Scalable:** Scale the hub in minutes. We chose monogdb as distributed storage.
+- **Scalable:** Scale the hub in minutes. We choose monogdb as distributed storage.
 - **Efficient:** Only distribute delta updates.
 - **Websocket:** Use websockets to get updates in realtime.
 - **Standardized** We're trying to be compliant with the W3C WebSub specification.
