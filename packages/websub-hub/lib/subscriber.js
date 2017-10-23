@@ -8,14 +8,14 @@ const defaultOptions = {
   hubUrl: ''
 }
 
-function Subscriber (options) {
+function Subscriber(options) {
   this.options = Hoek.applyToDefaults(defaultOptions, options || {})
   this.httpClient = Axios.create({
     timeout: this.options.timeout
   })
 }
 
-Subscriber.prototype.subscribe = function (subscription) {
+Subscriber.prototype.subscribe = function(subscription) {
   return this.httpClient.post(this.options.hubUrl + '/subscribe', {
     'hub.callback': subscription.callbackUrl,
     'hub.mode': 'subscribe',
@@ -23,7 +23,7 @@ Subscriber.prototype.subscribe = function (subscription) {
   })
 }
 
-Subscriber.prototype.unsubscribe = function (subscription) {
+Subscriber.prototype.unsubscribe = function(subscription) {
   return this.httpClient.post(this.options.hubUrl + '/unsubscribe', {
     'hub.callback': subscription.callbackUrl,
     'hub.mode': 'unsubscribe',
@@ -31,7 +31,7 @@ Subscriber.prototype.unsubscribe = function (subscription) {
   })
 }
 
-Subscriber.prototype.list = function (subscription) {
+Subscriber.prototype.list = function(subscription) {
   return this.httpClient.get(this.options.hubUrl + '/subscriptions')
 }
 

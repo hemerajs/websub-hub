@@ -1,13 +1,13 @@
 'use strict'
 
-function internalError (ctx) {
+function internalError(ctx) {
   return {
     msg: ctx.message,
     code: ctx.code
   }
 }
 
-function httpError (ctx) {
+function httpError(ctx) {
   return {
     msg: ctx.msg,
     statusCode: ctx.output.payload.statusCode,

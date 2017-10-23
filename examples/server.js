@@ -13,7 +13,13 @@ const hub = new WebSubHub({
   }
 })
 
-hub.listen().then(() => {
-  console.log('server listening on: ' + 'http://localhost:' + hub.server.server.address().port)
-})
-.catch(console.error)
+hub
+  .listen()
+  .then(() => {
+    console.log(
+      'server listening on: ' +
+        'http://localhost:' +
+        hub.server.server.address().port
+    )
+  })
+  .catch(console.error)

@@ -10,14 +10,14 @@ const Sinon = require('sinon')
 const Fs = require('fs')
 const Path = require('path')
 
-describe.only('Content Stream', function () {
+describe.only('Content Stream', function() {
   const PORT = 3000
   let hub
   let mongoInMemory
   let topic = 'http://testblog.de'
 
   // Start up our own nats-server
-  before(function (done) {
+  before(function(done) {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
@@ -40,7 +40,7 @@ describe.only('Content Stream', function () {
   })
 
   // Shutdown our server after we are done
-  after(function (done) {
+  after(function(done) {
     hub.close().then(() => {
       mongoInMemory.stop(() => {
         done()
@@ -48,7 +48,7 @@ describe.only('Content Stream', function () {
     })
   })
 
-  it('Should be able to stream json', function () {
+  it('Should be able to stream json', function() {
     const callbackUrl = 'http://127.0.0.1:3002'
 
     const mock = new MockAdapter(hub.httpClient)
@@ -56,43 +56,53 @@ describe.only('Content Stream', function () {
     const callbackUrlCall = Sinon.spy()
     const distributeContentCall = Sinon.spy()
 
-    mock.onPost(callbackUrl).replyOnce(function (config) {
+    mock.onPost(callbackUrl).replyOnce(function(config) {
       callbackUrlCall()
       return [200, config.data]
     })
 
-    mock.onPost(callbackUrl).replyOnce(function (config) {
+    mock.onPost(callbackUrl).replyOnce(function(config) {
       distributeContentCall()
       return [200]
     })
 
-    mock.onGet(topic + '/feeds').reply(200, Fs.createReadStream(Path.join(__dirname, 'fixtures/sample.json')), {
-      'Content-Type': 'application/json'
-    })
+    mock
+      .onGet(topic + '/feeds')
+      .reply(
+        200,
+        Fs.createReadStream(Path.join(__dirname, 'fixtures/sample.json')),
+        {
+          'Content-Type': 'application/json'
+        }
+      )
 
     // Create subscription and topic
-    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
-      'hub.callback': callbackUrl,
-      'hub.mode': 'subscribe',
-      'hub.topic': topic + '/feeds'
-    }).then((response) => {
-      expect(response.status).to.be.equals(200)
-    })
-    .then(() => {
-      return Axios.default.post(`http://localhost:${PORT}/publish`, {
-        'hub.mode': 'publish',
-        'hub.url': topic + '/feeds'
-      }).then((response) => {
-        expect(response.status).to.be.equals(200)
-
-        expect(callbackUrlCall.called).to.be.equals(true)
-        expect(distributeContentCall.called).to.be.equals(true)
-        mock.restore()
+    return Axios.default
+      .post(`http://localhost:${PORT}/subscribe`, {
+        'hub.callback': callbackUrl,
+        'hub.mode': 'subscribe',
+        'hub.topic': topic + '/feeds'
       })
-    })
+      .then(response => {
+        expect(response.status).to.be.equals(200)
+      })
+      .then(() => {
+        return Axios.default
+          .post(`http://localhost:${PORT}/publish`, {
+            'hub.mode': 'publish',
+            'hub.url': topic + '/feeds'
+          })
+          .then(response => {
+            expect(response.status).to.be.equals(200)
+
+            expect(callbackUrlCall.called).to.be.equals(true)
+            expect(distributeContentCall.called).to.be.equals(true)
+            mock.restore()
+          })
+      })
   })
 
-  it('Should be able to stream xml', function () {
+  it('Should be able to stream xml', function() {
     const callbackUrl = 'http://127.0.0.1:3002'
 
     const mock = new MockAdapter(hub.httpClient)
@@ -100,40 +110,50 @@ describe.only('Content Stream', function () {
     const callbackUrlCall = Sinon.spy()
     const distributeContentCall = Sinon.spy()
 
-    mock.onPost(callbackUrl).replyOnce(function (config) {
+    mock.onPost(callbackUrl).replyOnce(function(config) {
       callbackUrlCall()
       return [200, config.data]
     })
 
-    mock.onPost(callbackUrl).replyOnce(function (config) {
+    mock.onPost(callbackUrl).replyOnce(function(config) {
       distributeContentCall()
       return [200]
     })
 
-    mock.onGet(topic + '/feeds').reply(200, Fs.createReadStream(Path.join(__dirname, 'fixtures/sample.xml')), {
-      'Content-Type': 'application/xml'
-    })
+    mock
+      .onGet(topic + '/feeds')
+      .reply(
+        200,
+        Fs.createReadStream(Path.join(__dirname, 'fixtures/sample.xml')),
+        {
+          'Content-Type': 'application/xml'
+        }
+      )
 
     // Create subscription and topic
-    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
-      'hub.callback': callbackUrl,
-      'hub.mode': 'subscribe',
-      'hub.topic': topic + '/feeds',
-      'hub.format': 'xml'
-    }).then((response) => {
-      expect(response.status).to.be.equals(200)
-    })
-    .then(() => {
-      return Axios.default.post(`http://localhost:${PORT}/publish`, {
-        'hub.mode': 'publish',
-        'hub.url': topic + '/feeds'
-      }).then((response) => {
-        expect(response.status).to.be.equals(200)
-
-        expect(callbackUrlCall.called).to.be.equals(true)
-        expect(distributeContentCall.called).to.be.equals(true)
-        mock.restore()
+    return Axios.default
+      .post(`http://localhost:${PORT}/subscribe`, {
+        'hub.callback': callbackUrl,
+        'hub.mode': 'subscribe',
+        'hub.topic': topic + '/feeds',
+        'hub.format': 'xml'
       })
-    })
+      .then(response => {
+        expect(response.status).to.be.equals(200)
+      })
+      .then(() => {
+        return Axios.default
+          .post(`http://localhost:${PORT}/publish`, {
+            'hub.mode': 'publish',
+            'hub.url': topic + '/feeds'
+          })
+          .then(response => {
+            expect(response.status).to.be.equals(200)
+
+            expect(callbackUrlCall.called).to.be.equals(true)
+            expect(distributeContentCall.called).to.be.equals(true)
+            mock.restore()
+          })
+      })
   })
 })

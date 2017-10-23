@@ -9,7 +9,7 @@ const Websocket = require('ws')
 const Axios = require('axios')
 const Jwt = require('jsonwebtoken')
 
-describe('Websocket', function () {
+describe('Websocket', function() {
   const PORT = 3000
   let hub
   let mongoInMemory
@@ -18,7 +18,7 @@ describe('Websocket', function () {
   let jwtToken = Jwt.sign({ client: 'peter' }, jwtSecret)
 
   // Start up our own nats-server
-  before(function (done) {
+  before(function(done) {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
@@ -44,7 +44,7 @@ describe('Websocket', function () {
   })
 
   // Shutdown our server after we are done
-  after(function (done) {
+  after(function(done) {
     hub.close().then(() => {
       mongoInMemory.stop(() => {
         done()
@@ -52,27 +52,31 @@ describe('Websocket', function () {
     })
   })
 
-  it('Should be able to subscribe', function (done) {
+  it('Should be able to subscribe', function(done) {
     const callbackUrl = 'http://127.0.0.1:3002'
 
-    const client = new Websocket('ws://localhost:' + PORT + '?token=' + jwtToken)
+    const client = new Websocket(
+      'ws://localhost:' + PORT + '?token=' + jwtToken
+    )
 
     const mock = new MockAdapter(hub.httpClient)
 
-    mock.onPost(callbackUrl).reply(function (config) {
+    mock.onPost(callbackUrl).reply(function(config) {
       return [200, config.data]
     })
 
-    client.on('open', function open () {
-      client.send(JSON.stringify({
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds',
-        'hub.protocol': 'ws'
-      }))
+    client.on('open', function open() {
+      client.send(
+        JSON.stringify({
+          'hub.callback': callbackUrl,
+          'hub.mode': 'subscribe',
+          'hub.topic': topic + '/feeds',
+          'hub.protocol': 'ws'
+        })
+      )
     })
 
-    client.on('message', function incoming (data) {
+    client.on('message', function incoming(data) {
       const response = JSON.parse(data)
       if (response['hub.mode'] === 'subscribe') {
         expect(response.success).to.be.equals(true)
@@ -82,27 +86,33 @@ describe('Websocket', function () {
     })
   })
 
-  it('Should not be able to verify subscription intent because invalid status code', function (done) {
+  it('Should not be able to verify subscription intent because invalid status code', function(
+    done
+  ) {
     const callbackUrl = 'http://127.0.0.1:3002'
 
-    const client = new Websocket('ws://localhost:' + PORT + '?token=' + jwtToken)
+    const client = new Websocket(
+      'ws://localhost:' + PORT + '?token=' + jwtToken
+    )
 
     const mock = new MockAdapter(hub.httpClient)
 
-    mock.onPost(callbackUrl).reply(function (config) {
+    mock.onPost(callbackUrl).reply(function(config) {
       return [401, config.data]
     })
 
-    client.on('open', function open () {
-      client.send(JSON.stringify({
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds',
-        'hub.protocol': 'ws'
-      }))
+    client.on('open', function open() {
+      client.send(
+        JSON.stringify({
+          'hub.callback': callbackUrl,
+          'hub.mode': 'subscribe',
+          'hub.topic': topic + '/feeds',
+          'hub.protocol': 'ws'
+        })
+      )
     })
 
-    client.on('message', function incoming (data) {
+    client.on('message', function incoming(data) {
       const response = JSON.parse(data)
       if (response['hub.mode'] === 'subscribe') {
         expect(response.success).to.be.equals(false)
@@ -112,10 +122,14 @@ describe('Websocket', function () {
     })
   })
 
-  it('Should not be able to verify subscription intent because invalid challenge', function (done) {
+  it('Should not be able to verify subscription intent because invalid challenge', function(
+    done
+  ) {
     const callbackUrl = 'http://127.0.0.1:3002'
 
-    const client = new Websocket('ws://localhost:' + PORT + '?token=' + jwtToken)
+    const client = new Websocket(
+      'ws://localhost:' + PORT + '?token=' + jwtToken
+    )
 
     const mock = new MockAdapter(hub.httpClient)
 
@@ -127,16 +141,18 @@ describe('Websocket', function () {
       'hub.challenge': 'wrong'
     })
 
-    client.on('open', function open () {
-      client.send(JSON.stringify({
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds',
-        'hub.protocol': 'ws'
-      }))
+    client.on('open', function open() {
+      client.send(
+        JSON.stringify({
+          'hub.callback': callbackUrl,
+          'hub.mode': 'subscribe',
+          'hub.topic': topic + '/feeds',
+          'hub.protocol': 'ws'
+        })
+      )
     })
 
-    client.on('message', function incoming (data) {
+    client.on('message', function incoming(data) {
       const response = JSON.parse(data)
       if (response['hub.mode'] === 'subscribe') {
         expect(response.success).to.be.equals(false)
@@ -146,47 +162,52 @@ describe('Websocket', function () {
     })
   })
 
-  it('Should be able to receive updates', function (done) {
+  it('Should be able to receive updates', function(done) {
     const callbackUrl = 'http://127.0.0.1:3002'
 
     const mock = new MockAdapter(hub.httpClient)
 
-    mock.onPost(callbackUrl).reply(function (config) {
+    mock.onPost(callbackUrl).reply(function(config) {
       return [200, config.data]
     })
 
     const feed = {
-      'version': 'https://jsonfeed.org/version/1',
-      'title': 'My Example Feed',
-      'home_page_url': 'https://example.org/',
-      'feed_url': 'https://example.org/feed.json',
-      'items': [{
-        'id': '2',
-        'content_text': 'This is a second item.',
-        'url': 'https://example.org/second-item'
-      },
-      {
-        'id': '1',
-        'content_html': '<p>Hello, world!</p>',
-        'url': 'https://example.org/initial-post'
-      }
+      version: 'https://jsonfeed.org/version/1',
+      title: 'My Example Feed',
+      home_page_url: 'https://example.org/',
+      feed_url: 'https://example.org/feed.json',
+      items: [
+        {
+          id: '2',
+          content_text: 'This is a second item.',
+          url: 'https://example.org/second-item'
+        },
+        {
+          id: '1',
+          content_html: '<p>Hello, world!</p>',
+          url: 'https://example.org/initial-post'
+        }
       ]
     }
 
     mock.onGet(topic + '/feeds').reply(200, feed)
 
-    const client = new Websocket('ws://localhost:' + PORT + '?token=' + jwtToken)
+    const client = new Websocket(
+      'ws://localhost:' + PORT + '?token=' + jwtToken
+    )
 
-    client.on('open', function open () {
-      client.send(JSON.stringify({
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds',
-        'hub.protocol': 'ws'
-      }))
+    client.on('open', function open() {
+      client.send(
+        JSON.stringify({
+          'hub.callback': callbackUrl,
+          'hub.mode': 'subscribe',
+          'hub.topic': topic + '/feeds',
+          'hub.protocol': 'ws'
+        })
+      )
     })
 
-    client.on('message', function incoming (data) {
+    client.on('message', function incoming(data) {
       const response = JSON.parse(data)
       if (response['hub.mode'] === 'subscribe') {
         Axios.default.post(`http://localhost:${PORT}/publish`, {
@@ -202,47 +223,52 @@ describe('Websocket', function () {
     })
   })
 
-  it('Should not be able to connect with wrong signed key', function (done) {
+  it('Should not be able to connect with wrong signed key', function(done) {
     const client = new Websocket('ws://localhost:' + PORT + '?token=wed23d23d')
 
-    client.on('open', function open () {
-    })
+    client.on('open', function open() {})
 
-    client.on('error', function error () {
+    client.on('error', function error() {
       client.close()
       done()
     })
   })
 
-  it('Should be able to unsubscribe', function (done) {
+  it('Should be able to unsubscribe', function(done) {
     const callbackUrl = 'http://127.0.0.1:3002'
 
-    const client = new Websocket('ws://localhost:' + PORT + '?token=' + jwtToken)
+    const client = new Websocket(
+      'ws://localhost:' + PORT + '?token=' + jwtToken
+    )
 
     const mock = new MockAdapter(hub.httpClient)
 
-    mock.onPost(callbackUrl).reply(function (config) {
+    mock.onPost(callbackUrl).reply(function(config) {
       return [200, config.data]
     })
 
-    client.on('open', function open () {
-      client.send(JSON.stringify({
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds',
-        'hub.protocol': 'ws'
-      }))
+    client.on('open', function open() {
+      client.send(
+        JSON.stringify({
+          'hub.callback': callbackUrl,
+          'hub.mode': 'subscribe',
+          'hub.topic': topic + '/feeds',
+          'hub.protocol': 'ws'
+        })
+      )
     })
 
-    client.on('message', function incoming (data) {
+    client.on('message', function incoming(data) {
       const response = JSON.parse(data)
       if (response['hub.mode'] === 'subscribe') {
         expect(response.success).to.be.equals(true)
-        client.send(JSON.stringify({
-          'hub.callback': callbackUrl,
-          'hub.mode': 'unsubscribe',
-          'hub.topic': topic + '/feeds'
-        }))
+        client.send(
+          JSON.stringify({
+            'hub.callback': callbackUrl,
+            'hub.mode': 'unsubscribe',
+            'hub.topic': topic + '/feeds'
+          })
+        )
       } else if (response['hub.mode'] === 'unsubscribe') {
         expect(response.success).to.be.equals(true)
         client.close()
@@ -251,16 +277,20 @@ describe('Websocket', function () {
     })
   })
 
-  it('Should be able to get list of all subscription', function (done) {
-    const client = new Websocket('ws://localhost:' + PORT + '?token=' + jwtToken)
+  it('Should be able to get list of all subscription', function(done) {
+    const client = new Websocket(
+      'ws://localhost:' + PORT + '?token=' + jwtToken
+    )
 
-    client.on('open', function open () {
-      client.send(JSON.stringify({
-        'hub.mode': 'list'
-      }))
+    client.on('open', function open() {
+      client.send(
+        JSON.stringify({
+          'hub.mode': 'list'
+        })
+      )
     })
 
-    client.on('message', function incoming (data) {
+    client.on('message', function incoming(data) {
       const response = JSON.parse(data)
       if (response['hub.mode'] === 'list') {
         expect(response.success).to.be.equals(true)

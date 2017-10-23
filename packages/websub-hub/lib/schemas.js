@@ -12,7 +12,7 @@ module.exports.subscriptionRequest = {
       'hub.secret': { type: 'string' },
       'hub.format': { type: 'string' }
     },
-    'required': [ 'hub.topic', 'hub.mode', 'hub.callback' ]
+    required: ['hub.topic', 'hub.mode', 'hub.callback']
   }
 }
 
@@ -23,6 +23,6 @@ module.exports.publishingRequest = {
       'hub.mode': { enum: ['publish'] },
       'hub.url': { type: 'string' }
     },
-    'required': [ 'hub.mode', 'hub.url' ]
+    required: ['hub.mode', 'hub.url']
   }
 }

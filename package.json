@@ -2,40 +2,29 @@
   "private": true,
   "author": "Dustin Deus <deusdustin@gmail.com> (http://www.starptech.de)",
   "scripts": {
-    "test": "nyc mocha -t 3000",
-    "test-watch": "mocha -t 3000 -w",
+    "test": "nyc mocha -t 3000 --exit",
+    "test-watch": "mocha -t 3000 -w --exit",
     "bootstrap": "lerna bootstrap",
-    "lint": "standard /packages/**/*.js --fix",
+    "lint": "prettier ./packages/**/*.js ./examples/**/*.js ./test/**/*.js --write",
     "setup": "npm i && npm run bootstrap",
     "coverage": "npm run test && nyc report --reporter=html"
   },
-  "standard": {
-    "ignore": [
-      "**/node_modules/"
-    ],
-    "envs": [
-      "es6",
-      "node",
-      "mocha"
-    ],
-    "globals": []
-  },
   "devDependencies": {
-    "axios": "0.16.2",
-    "axios-mock-adapter": "1.8.1",
-    "body-parser": "1.17.2",
-    "code": "4.1.0",
-    "coveralls": "2.13.1",
-    "express": "4.15.3",
-    "istanbul": "0.4.5",
-    "jsonwebtoken": "7.4.1",
-    "lerna": "2.0.0-rc.5",
-    "mocha": "3.4.2",
+    "axios": "^0.17.0",
+    "axios-mock-adapter": "^1.9.0",
+    "body-parser": "^1.18.2",
+    "code": "^5.1.0",
+    "coveralls": "^3.0.0",
+    "fastify": "^0.30.2",
+    "istanbul": "^0.4.5",
+    "jsonwebtoken": "^8.1.0",
+    "lerna": "^2.4.0",
+    "mocha": "^4.0.1",
     "mongo-in-memory": "0.0.5",
     "nyc": "11.0.2",
-    "sinon": "2.3.4",
-    "snazzy": "7.0.0",
-    "standard": "10.0.2",
-    "ws": "3.0.0"
+    "prettier": "^1.7.4",
+    "sinon": "^4.0.1",
+    "snazzy": "^7.0.0",
+    "ws": "^3.2.0"
   }
 }
