@@ -15,6 +15,7 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 
 - __Node:__ >= 8.0
 - __Lead Maintainer:__ [Dustin Deus](https://github.com/StarpTech)
+- __Status:__ Not maintained and not ready for production
 
 ## Expectations
 
