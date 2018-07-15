@@ -36,6 +36,10 @@ build/Release
 node_modules/
 jspm_packages/
 
+# vscode
+.vscode
+*code-workspace
+
 # Typescript v1 declaration files
 typings/
 

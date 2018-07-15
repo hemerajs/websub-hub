@@ -1,22 +1,20 @@
 'use strict'
 
 const Hoek = require('hoek')
-const Axios = require('axios')
+const Got = require('got')
 
 const defaultOptions = {
   timeout: 2000,
-  hubUrl: ''
+  baseUrl: ''
 }
 
 function Subscriber(options) {
   this.options = Hoek.applyToDefaults(defaultOptions, options || {})
-  this.httpClient = Axios.create({
-    timeout: this.options.timeout
-  })
+  this.httpClient = Got
 }
 
 Subscriber.prototype.subscribe = function(subscription) {
-  return this.httpClient.post(this.options.hubUrl + '/subscribe', {
+  return this.httpClient.post(this.options.baseUrl + '/', {
     'hub.callback': subscription.callbackUrl,
     'hub.mode': 'subscribe',
     'hub.topic': subscription.topic
@@ -24,7 +22,7 @@ Subscriber.prototype.subscribe = function(subscription) {
 }
 
 Subscriber.prototype.unsubscribe = function(subscription) {
-  return this.httpClient.post(this.options.hubUrl + '/unsubscribe', {
+  return this.httpClient.post(this.options.baseUrl + '/', {
     'hub.callback': subscription.callbackUrl,
     'hub.mode': 'unsubscribe',
     'hub.topic': subscription.topic
@@ -32,7 +30,7 @@ Subscriber.prototype.unsubscribe = function(subscription) {
 }
 
 Subscriber.prototype.list = function(subscription) {
-  return this.httpClient.get(this.options.hubUrl + '/subscriptions')
+  return this.httpClient.get(this.options.baseUrl + '/subscriptions')
 }
 
 module.exports = Subscriber

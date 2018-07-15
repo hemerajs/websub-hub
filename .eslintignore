@@ -1,0 +1,10 @@
+!/*.js
+/tests/**/*.js
+!/tests/**/jsfmt.spec.js
+!/**/.eslintrc.js
+/test.js
+/dist/
+**/node_modules/**
+.nyc_output
+coverage
+test

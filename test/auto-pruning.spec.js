@@ -2,10 +2,9 @@
 
 const Code = require('code')
 const expect = Code.expect
-const Axios = require('axios')
+const Got = require('got')
 const Hub = require('./../packages/websub-hub').server
 const MongoInMemory = require('mongo-in-memory')
-const MockAdapter = require('axios-mock-adapter')
 const Sinon = require('sinon')
 
 describe('Auto pruning', function() {
@@ -14,7 +13,6 @@ describe('Auto pruning', function() {
   let mongoInMemory
   let topic = 'http://testblog.de'
 
-  // Start up our own nats-server
   before(function(done) {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
@@ -23,11 +21,6 @@ describe('Auto pruning', function() {
         logLevel: 'debug',
         mongo: {
           url: mongoInMemory.getMongouri('hub')
-        },
-        retry: {
-          retries: 3,
-          minTimeout: 250,
-          randomize: false
         }
       })
       hub.listen().then(() => {
@@ -85,34 +78,35 @@ describe('Auto pruning', function() {
     })
 
     // Create subscription and topic
-    return Axios.default
-      .post(`http://localhost:${PORT}/subscribe`, {
+    return Got.post(`http://localhost:${PORT}/subscribe`, {
+      body: {
         'hub.callback': callbackUrl,
         'hub.mode': 'subscribe',
         'hub.topic': topic + '/feeds'
-      })
+      }
+    })
       .then(response => {
         expect(response.status).to.be.equals(200)
       })
       .then(() => {
-        return Axios.default
-          .post(`http://localhost:${PORT}/publish`, {
+        return Got.post(`http://localhost:${PORT}/publish`, {
+          body: {
             'hub.mode': 'publish',
             'hub.url': topic + '/feeds'
-          })
-          .then(response => {
-            expect(response.status).to.be.equals(200)
-            // check retrys
-            expect(callbackUrlCall.called).to.be.equals(true)
-            expect(distributeContentCall.callCount).to.be.equals(4)
-            // check if sub was removed
-            return Axios.default
-              .get(`http://localhost:${PORT}/subscriptions`)
-              .then(response => {
-                expect(response.data.length).to.be.equals(0)
-                mock.restore()
-              })
-          })
+          }
+        }).then(response => {
+          expect(response.status).to.be.equals(200)
+          // check retrys
+          expect(callbackUrlCall.called).to.be.equals(true)
+          expect(distributeContentCall.callCount).to.be.equals(4)
+          // check if sub was removed
+          return Got.get(`http://localhost:${PORT}/subscriptions`).then(
+            response => {
+              expect(response.data.length).to.be.equals(0)
+              mock.restore()
+            }
+          )
+        })
       })
   })
 })

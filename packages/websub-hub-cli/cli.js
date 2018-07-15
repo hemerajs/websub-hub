@@ -46,8 +46,9 @@ function runHub(opts) {
     .listen(opts.port, opts.address)
     .then(() => {
       console.log(
-        `Server listening on http://localhost:${hub.server.server.address()
-          .port}`
+        `Server listening on http://localhost:${
+          hub.server.server.address().port
+        }`
       )
     })
     .catch(err => {

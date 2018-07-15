@@ -2,11 +2,12 @@
 
 const Code = require('code')
 const expect = Code.expect
-const Axios = require('axios')
+const Got = require('got')
 const Hub = require('./../packages/websub-hub').server
 const MongoInMemory = require('mongo-in-memory')
-const MockAdapter = require('axios-mock-adapter')
 const Sinon = require('sinon')
+const Nock = require('nock')
+const { parse } = require('url')
 
 describe('Basic Subscription list', function() {
   const PORT = 3000
@@ -14,17 +15,12 @@ describe('Basic Subscription list', function() {
   let mongoInMemory
   let topic = 'http://testblog.de'
 
-  // Start up our own nats-server
   before(function(done) {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
         timeout: 500,
         logLevel: 'debug',
-        retry: {
-          retries: 1,
-          randomize: false
-        },
         mongo: {
           url: mongoInMemory.getMongouri('hub')
         }
@@ -37,7 +33,6 @@ describe('Basic Subscription list', function() {
     })
   })
 
-  // Shutdown our server after we are done
   after(function(done) {
     hub.close().then(() => {
       mongoInMemory.stop(() => {
@@ -46,36 +41,56 @@ describe('Basic Subscription list', function() {
     })
   })
 
-  it('Should return list of all active subscriptions', function() {
-    const callbackUrl = 'http://127.0.0.1:3001'
+  it('Should return list of all active subscriptions', async function() {
+    const callbackUrl = 'http://127.0.0.1:3002'
+    const blogFeeds = {
+      version: 'https://jsonfeed.org/version/1',
+      title: 'My Example Feed',
+      updated: '2003-12-13T18:30:02Z',
+      home_page_url: 'https://example.org/',
+      feed_url: 'https://example.org/feed.json',
+      items: [
+        {
+          id: '2',
+          content_text: 'This is a second item.',
+          url: 'https://example.org/second-item'
+        },
+        {
+          id: '1',
+          content_html: '<p>Hello, world!</p>',
+          url: 'https://example.org/initial-post'
+        }
+      ]
+    }
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }
 
-    const mock = new MockAdapter(hub.httpClient)
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
 
-    const callbackUrlCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).reply(function(config) {
-      callbackUrlCall()
-      return [200, config.data]
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
     })
 
-    return Axios.default
-      .post(`http://localhost:${PORT}/subscribe`, {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds'
-      })
-      .then(response => {
-        expect(response.status).to.be.equals(200)
-        expect(callbackUrlCall.called).to.be.equals(true)
-        return Axios.default
-          .get(`http://localhost:${PORT}/subscriptions`)
-          .then(response => {
-            expect(response.data.length).to.be.equals(1)
-            expect(response.data[0].callbackUrl).to.be.equals(
-              'http://127.0.0.1:3001'
-            )
-            mock.restore()
-          })
-      })
+    expect(response.statusCode).to.be.equals(200)
+
+    response = await Got.get(`http://localhost:${PORT}/subscriptions`, {
+      json: true
+    })
+    expect(response.body.length).to.be.equals(1)
+    expect(response.body[0].callbackUrl).to.be.equals('http://127.0.0.1:3002')
+
+    verifyIntentMock.done()
   })
 })

@@ -2,10 +2,9 @@
 
 const Code = require('code')
 const expect = Code.expect
-const Axios = require('axios')
+const Got = require('got')
 const Hub = require('./../packages/websub-hub').server
 const MongoInMemory = require('mongo-in-memory')
-const MockAdapter = require('axios-mock-adapter')
 const Crypto = require('crypto')
 const Sinon = require('sinon')
 
@@ -16,17 +15,12 @@ describe('Authenticated Content Distribution', function() {
   let topic = 'http://testblog.de'
   let secret = '123456'
 
-  // Start up our own nats-server
   before(function(done) {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
         timeout: 500,
         logLevel: 'debug',
-        retry: {
-          retries: 1,
-          randomize: false
-        },
         mongo: {
           url: mongoInMemory.getMongouri('hub')
         }
@@ -39,7 +33,6 @@ describe('Authenticated Content Distribution', function() {
     })
   })
 
-  // Shutdown our server after we are done
   after(function(done) {
     hub.close().then(() => {
       mongoInMemory.stop(() => {
@@ -93,29 +86,30 @@ describe('Authenticated Content Distribution', function() {
     })
 
     // Create subscription and topic
-    return Axios.default
-      .post(`http://localhost:${PORT}/subscribe`, {
+    return Got.post(`http://localhost:${PORT}/subscribe`, {
+      body: {
         'hub.callback': callbackUrl,
         'hub.mode': 'subscribe',
         'hub.topic': topic + '/feeds',
         'hub.secret': secret
-      })
+      }
+    })
       .then(response => {
         expect(response.status).to.be.equals(200)
       })
       .then(() => {
-        return Axios.default
-          .post(`http://localhost:${PORT}/publish`, {
+        return Got.post(`http://localhost:${PORT}/publish`, {
+          body: {
             'hub.mode': 'publish',
             'hub.url': topic + '/feeds'
-          })
-          .then(response => {
-            expect(response.status).to.be.equals(200)
+          }
+        }).then(response => {
+          expect(response.status).to.be.equals(200)
 
-            expect(callbackUrlCall.called).to.be.equals(true)
-            expect(distributeContentCall.called).to.be.equals(true)
-            mock.restore()
-          })
+          expect(callbackUrlCall.called).to.be.equals(true)
+          expect(distributeContentCall.called).to.be.equals(true)
+          mock.restore()
+        })
       })
   })
 
@@ -165,28 +159,29 @@ describe('Authenticated Content Distribution', function() {
     })
 
     // Create subscription and topic
-    return Axios.default
-      .post(`http://localhost:${PORT}/subscribe`, {
+    return Got.post(`http://localhost:${PORT}/subscribe`, {
+      body: {
         'hub.callback': callbackUrl,
         'hub.mode': 'subscribe',
         'hub.topic': topic + '/feeds',
         'hub.secret': secret
-      })
+      }
+    })
       .then(response => {
         expect(response.status).to.be.equals(200)
       })
       .then(() => {
-        return Axios.default
-          .post(`http://localhost:${PORT}/publish`, {
+        return Got.post(`http://localhost:${PORT}/publish`, {
+          body: {
             'hub.mode': 'publish',
             'hub.url': topic + '/feeds'
-          })
-          .then(response => {
-            expect(response.status).to.be.equals(200)
-            expect(callbackUrlCall.called).to.be.equals(true)
-            expect(distributeContentCall.called).to.be.equals(true)
-            mock.restore()
-          })
+          }
+        }).then(response => {
+          expect(response.status).to.be.equals(200)
+          expect(callbackUrlCall.called).to.be.equals(true)
+          expect(distributeContentCall.called).to.be.equals(true)
+          mock.restore()
+        })
       })
   })
 })

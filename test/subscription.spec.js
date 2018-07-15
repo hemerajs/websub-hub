@@ -2,11 +2,12 @@
 
 const Code = require('code')
 const expect = Code.expect
-const Axios = require('axios')
+const Got = require('got')
 const Hub = require('./../packages/websub-hub').server
 const MongoInMemory = require('mongo-in-memory')
-const MockAdapter = require('axios-mock-adapter')
 const Sinon = require('sinon')
+const Nock = require('nock')
+const { parse } = require('url')
 
 describe('Basic Subscription', function() {
   const PORT = 3000
@@ -14,17 +15,12 @@ describe('Basic Subscription', function() {
   let mongoInMemory
   let topic = 'http://testblog.de'
 
-  // Start up our own nats-server
   before(function(done) {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
         timeout: 500,
         logLevel: 'debug',
-        retry: {
-          retries: 1,
-          randomize: false
-        },
         mongo: {
           url: mongoInMemory.getMongouri('hub')
         }
@@ -37,7 +33,6 @@ describe('Basic Subscription', function() {
     })
   })
 
-  // Shutdown our server after we are done
   after(function(done) {
     hub.close().then(() => {
       mongoInMemory.stop(() => {
@@ -46,79 +41,90 @@ describe('Basic Subscription', function() {
     })
   })
 
-  it('Should respond with 403 because intent could not be verified', function() {
-    return Axios.default
-      .post(`http://localhost:${PORT}/subscribe`, {
-        'hub.callback': 'http://127.0.0.1:3001',
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds'
+  it('Should respond with 403 because intent could not be verified', async function() {
+    const callbackUrl = 'http://127.0.0.1:3001'
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }
+
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply((uri, requestBody) => {
+        return [200, { ...createSubscriptionBody, 'hub.challenge': 'wrong' }]
       })
-      .catch(error => {
-        expect(error.response.status).to.be.equals(403)
-        expect(error.response.data.statusCode).to.be.equals(403)
-        expect(error.response.data.error).to.be.equals('Forbidden')
-        expect(error.response.data.message).to.be.equals(
-          'Subscriber has return an invalid answer'
-        )
+
+    try {
+      await Got.post(`http://localhost:${PORT}/`, {
+        body: createSubscriptionBody
       })
+    } catch (err) {
+      expect(err.statusCode).to.be.equals(403)
+      verifyIntentMock.done()
+    }
   })
 
-  it('Should respond with 200 because intent could be verified', function() {
+  it('Should respond with 200 because intent could be verified', async function() {
     const callbackUrl = 'http://127.0.0.1:3001'
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }
 
-    const mock = new MockAdapter(hub.httpClient)
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
 
-    const callbackUrlCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).reply(function(config) {
-      callbackUrlCall()
-      return [200, config.data]
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
     })
 
-    return Axios.default
-      .post(`http://localhost:${PORT}/subscribe`, {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds'
-      })
-      .then(response => {
-        expect(response.status).to.be.equals(200)
-        expect(callbackUrlCall.called).to.be.equals(true)
-        mock.restore()
-      })
+    expect(response.statusCode).to.be.equals(200)
+    verifyIntentMock.done()
   })
 
-  it('Should be able to subscribe multiple times with the same subscriber', function() {
+  it('Should be able to subscribe multiple times with the same subscriber', async function() {
     const callbackUrl = 'http://127.0.0.1:3001'
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }
 
-    const mock = new MockAdapter(hub.httpClient)
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .twice()
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
 
-    const callbackUrlCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).reply(function(config) {
-      callbackUrlCall()
-      return [200, config.data]
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
     })
 
-    return Axios.default
-      .post(`http://localhost:${PORT}/subscribe`, {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds'
-      })
-      .then(response => {
-        expect(response.status).to.be.equals(200)
-        return Axios.default
-          .post(`http://localhost:${PORT}/subscribe`, {
-            'hub.callback': callbackUrl,
-            'hub.mode': 'subscribe',
-            'hub.topic': topic + '/feeds'
-          })
-          .then(response => {
-            expect(response.status).to.be.equals(200)
-            expect(callbackUrlCall.called).to.be.equals(true)
-            mock.restore()
-          })
-      })
+    expect(response.statusCode).to.be.equals(200)
+
+    response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
+    })
+
+    expect(response.statusCode).to.be.equals(200)
+
+    verifyIntentMock.done()
   })
 })
