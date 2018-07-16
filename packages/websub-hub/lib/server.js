@@ -109,14 +109,8 @@ Server.prototype._setupDbIndizes = async function() {
  * The subscriber must confirm that the hub.topic corresponds to a pending subscription or unsubscription that it wishes to carry out.
  * If so, the subscriber must respond with an HTTP success (2xx) code with a response body equal to the hub.challenge parameter.
  * If the subscriber does not agree with the action, the subscriber must respond with a 404 "Not Found" response.
- *
- * @param {any} callbackUrl
- * @param {any} mode
- * @param {any} topic
- * @param {any} challenge
- * @param {any} cb
- *
- * @memberof Server
+ * @param {*} param0
+ * @param {*} challenge
  */
 Server.prototype._verifyIntent = async function(
   { callbackUrl, mode, topic, callbackQuery },
@@ -153,10 +147,8 @@ Server.prototype._verifyIntent = async function(
 
 /**
  *
- *
- * @param {any} sub
- * @param {any} content
- * @returns
+ * @param {*} sub
+ * @param {*} content
  */
 Server.prototype._distributeContentHttp = async function(sub, content) {
   const headers = {}
@@ -216,9 +208,8 @@ Server.prototype._distributeContentHttp = async function(sub, content) {
 
 /**
  *
- *
- * @param {any} req
- * @param {any} reply
+ * @param {*} req
+ * @param {*} reply
  */
 Server.prototype._handlePublishRequest = async function(req, reply) {
   const topicUrl = req.body['hub.url']
@@ -250,9 +241,7 @@ Server.prototype._handlePublishRequest = async function(req, reply) {
 
 /**
  *
- * @TODO support streaming
- * @param {any} topic
- * @returns
+ * @param {*} sub
  */
 Server.prototype._fetchTopicContent = async function(sub) {
   const headers = {}
@@ -294,6 +283,11 @@ Server.prototype._fetchTopicContent = async function(sub) {
   }
 }
 
+/**
+ *
+ * @param {*} stream
+ * @param {*} contentType
+ */
 Server.prototype._getUpdatedDate = async function(stream, contentType) {
   if (contentType === 'json') {
     return this._parseJSONUpdateDate(stream)
@@ -302,6 +296,10 @@ Server.prototype._getUpdatedDate = async function(stream, contentType) {
   }
 }
 
+/**
+ *
+ * @param {*} stream
+ */
 Server.prototype._parseJSONUpdateDate = function(stream) {
   return new Promise(resolve => {
     const jsonParser = JSONStream.parse('updated')
@@ -313,6 +311,10 @@ Server.prototype._parseJSONUpdateDate = function(stream) {
   })
 }
 
+/**
+ *
+ * @param {*} stream
+ */
 Server.prototype._parseXMLUpdateDate = function(stream) {
   return new Promise(resolve => {
     let onUpdatedField = false
@@ -446,12 +448,6 @@ Server.prototype._unsubscribe = function(sub) {
     topic: sub.topic,
     callbackUrl: sub.callbackUrl,
     protocol: sub.protocol
-  })
-}
-
-Server.prototype._cleanExpiredSubscriptions = function() {
-  return this.subscriptionCollection.deleteMany({
-    leaseEndAt: { $lte: new Date() }
   })
 }
 

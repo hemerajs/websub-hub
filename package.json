@@ -3,8 +3,8 @@
   "author": "Dustin Deus <deusdustin@gmail.com> (http://www.starptech.de)",
   "scripts": {
     "precommit": "pretty-quick --staged && npm run lint && npm run test",
-    "test": "nyc mocha -t 5000 --exit ./test/lease.spec.js",
-    "test-watch": "mocha -t 5000 -w --exit",
+    "test": "nyc mocha -t 10000 --exit ./test/lease.spec.js",
+    "test-watch": "mocha -t 10000 -w --exit",
     "bootstrap": "lerna bootstrap",
     "format": "pretty-quick",
     "setup": "npm i && npm run bootstrap",
