@@ -9,29 +9,54 @@ const Sinon = require('sinon')
 const Nock = require('nock')
 const { parse } = require('url')
 const delay = require('delay')
+const MongoClient = require('mongodb').MongoClient
 
-describe('Lease', function() {
+describe('TTL subscriptions', function() {
+  // The background task that removes expired documents runs every 60 seconds.
+  // As a result, documents may remain in a collection during the period between the expiration of the document and the running of the background task.
+  this.timeout(65000)
+
   const PORT = 3000
   let hub
   let mongoInMemory
   let topic = 'http://testblog.de'
 
-  before(function(done) {
+  before(done => {
     mongoInMemory = new MongoInMemory()
-    mongoInMemory.start(() => {
-      hub = new Hub({
-        timeout: 500,
-        logLevel: 'debug',
-        mongo: {
-          url: mongoInMemory.getMongouri('hub')
-        }
-      })
-      hub.listen().then(() => {
-        mongoInMemory.start(() => {
-          done()
-        })
-      })
+    mongoInMemory.start(done)
+  })
+
+  before(function() {
+    hub = new Hub({
+      logLevel: 'debug',
+      mongo: {
+        url: mongoInMemory.getMongouri('hub')
+      }
     })
+    return hub.listen()
+  })
+
+  before(done => {
+    MongoClient.connect(
+      mongoInMemory.getMongouri('hub'),
+      function onConnect(err, client) {
+        if (err) {
+          done(err)
+          return
+        }
+        const db = client.db('admin')
+        db.command(
+          { setParameter: 1, ttlMonitorSleepSecs: 5 },
+          (err, result) => {
+            if (err) {
+              done(err)
+              return
+            }
+            done()
+          }
+        )
+      }
+    )
   })
 
   // Shutdown our server after we are done
@@ -69,7 +94,7 @@ describe('Lease', function() {
 
     expect(response.statusCode).to.be.equals(200)
 
-    await delay(2000)
+    await delay(60000)
 
     response = await Got.get(`http://localhost:${PORT}/subscriptions`, {
       json: true
