@@ -18,9 +18,21 @@ const PEvent = require('p-event')
 const GetStream = require('get-stream')
 const MimeTypes = require('mime-types')
 const PMap = require('p-map')
+const Url = require('url')
 const Sax = require('sax')
 
 module.exports = Server
+
+const defaultLeaseInSeconds = 864000 // 10 days
+const verifiedState = {
+  ACCEPTED: 'accepted',
+  DECLINED: 'declined',
+  UNKNOWN: 'unknown'
+}
+const requestMode = {
+  SUBSCRIBE: 'subscribe',
+  UNSUBSRIBE: 'unsubscribe'
+}
 
 const defaultOptions = {
   name: 'hub',
@@ -60,19 +72,11 @@ function Server(options) {
   this.server.register(Mongodb, this.options.mongo).after(() => {
     const { db } = this.server.mongo
     this.subscriptionCollection = db.collection(this.options.collection)
+    return this._setupDbIndizes()
   })
 
   this.httpClient = Got
   this.hyperid = Hyperid()
-  this.intentStates = {
-    ACCEPTED: 'accepted',
-    DECLINED: 'declined',
-    UNKNOWN: 'unknown'
-  }
-  this.modes = {
-    SUBSCRIBE: 'subscribe',
-    UNSUBSRIBE: 'unsubscribe'
-  }
   this._registerHandlers()
 
   const pretty = Pino.pretty()
@@ -93,6 +97,13 @@ function Server(options) {
   }
 }
 
+Server.prototype._setupDbIndizes = async function() {
+  return this.subscriptionCollection.createIndex(
+    { leaseEndAt: 1 },
+    { expireAfterSeconds: 0 }
+  )
+}
+
 /**
  * The hub verifies a subscription request by sending an HTTP [RFC7231] GET request to the subscriber's callback URL as given in the subscription request.
  * The subscriber must confirm that the hub.topic corresponds to a pending subscription or unsubscription that it wishes to carry out.
@@ -108,36 +119,36 @@ function Server(options) {
  * @memberof Server
  */
 Server.prototype._verifyIntent = async function(
-  callbackUrl,
-  mode,
-  topic,
-  challenge,
-  cb
+  { callbackUrl, mode, topic, callbackQuery },
+  challenge
 ) {
   let response
   try {
     response = await this.httpClient.get(callbackUrl, {
+      timeout: this.options.timeout,
       retries: this.options.retries,
       json: true,
       query: {
+        ...callbackQuery,
         'hub.topic': topic,
         'hub.mode': mode,
         'hub.challenge': challenge
       }
     })
   } catch (_) {
-    return this.intentStates.UNKNOWN
+    return verifiedState.UNKNOWN
   }
 
   if (
+    response.body &&
     response.body['hub.challenge'] &&
     challenge &&
     safeEqual(response.body['hub.challenge'], challenge)
   ) {
-    return this.intentStates.ACCEPTED
+    return verifiedState.ACCEPTED
   }
 
-  return this.intentStates.DECLINED
+  return verifiedState.DECLINED
 }
 
 /**
@@ -166,8 +177,10 @@ Server.prototype._distributeContentHttp = async function(sub, content) {
     try {
       await this.httpClient.post(sub.callbackUrl, {
         body: streamContent,
+        query: sub.callbackQuery,
         retries: this.options.retries,
-        headers
+        headers,
+        timeout: this.options.timeout
       })
     } catch (err) {
       // swallow
@@ -180,8 +193,10 @@ Server.prototype._distributeContentHttp = async function(sub, content) {
   } else {
     const stream = content.stream.pipe(
       this.httpClient.stream.post(sub.callbackUrl, {
+        query: sub.callbackQuery,
         retries: this.options.retries,
-        headers
+        headers,
+        timeout: this.options.timeout
       })
     )
     return new Promise((resolve, reject) => {
@@ -254,7 +269,8 @@ Server.prototype._fetchTopicContent = async function(sub) {
     stream = await this.httpClient.get(sub.topic, {
       stream: true,
       retries: this.options.retries,
-      headers
+      headers,
+      timeout: this.options.timeout
     })
   } catch (err) {
     this.log.error(err, `From topic '%s' could not be fetched`, sub.topic)
@@ -325,56 +341,66 @@ Server.prototype._parseXMLUpdateDate = function(stream) {
  * @param {any} reply
  */
 Server.prototype._handleSubscriptionRequest = async function(req, reply) {
-  const callbackUrl = req.body['hub.callback']
   const mode = req.body['hub.mode']
-  const topic = req.body['hub.topic']
-  const leaseSeconds = req.body['hub.lease_seconds']
+  const leaseSeconds = req.body['hub.lease_seconds'] || defaultLeaseInSeconds
   const secret = req.body['hub.secret']
-  const format = req.body['hub.format'] || 'json'
-  const protocol = 'http'
+  const format = req.body['hub.format']
   const challenge = this.hyperid()
+
+  const topicUrlParsed = Url.parse(req.body['hub.topic'], true)
+
+  const topicQuery = topicUrlParsed.query
+  // remove query to get a normalized url without query params
+  topicUrlParsed.search = ''
+  topicUrlParsed.query = {}
+
+  let topicUrl = Url.format(topicUrlParsed, {
+    search: false,
+    fragment: false
+  })
+
+  const callbackUrlParsed = Url.parse(req.body['hub.callback'], true)
+  const protocol = callbackUrlParsed.protocol
+
+  const callbackQuery = callbackUrlParsed.query
+  callbackUrlParsed.search = ''
+  callbackUrlParsed.query = {}
+
+  let callbackUrl = Url.format(callbackUrlParsed, {
+    search: false,
+    fragment: false
+  })
 
   const sub = {
     mode,
     callbackUrl,
-    topic,
+    callbackQuery,
+    protocol,
+    topic: topicUrl,
+    topicQuery,
     leaseSeconds,
     secret,
-    protocol,
     format
   }
 
-  const intentResult = await this._verifyIntent(
-    sub.callbackUrl,
-    sub.mode,
-    sub.topic,
-    challenge
-  )
+  const intentResult = await this._verifyIntent(sub, challenge)
 
-  if (intentResult === this.intentStates.DECLINED) {
+  if (intentResult === verifiedState.DECLINED) {
     reply.send(Boom.forbidden('Subscriber has declined'))
     return
-  } else if (intentResult === this.intentStates.UNKNOWN) {
+  } else if (intentResult === verifiedState.UNKNOWN) {
     reply.send(Boom.forbidden('Subscriber could not be verified'))
     return
   }
 
   this.log.info(`'%s' for callback '%s' was verified`, mode, callbackUrl)
 
-  if (mode === this.modes.SUBSCRIBE) {
+  if (mode === requestMode.SUBSCRIBE) {
     await this._createSubscription(sub)
-    this.log.info(
-      `subscription for callback '%s' was created`,
-      mode,
-      callbackUrl
-    )
+    this.log.info(`subscription for callback '%s' was created`, callbackUrl)
   } else {
     await this._unsubscribe(sub)
-    this.log.info(
-      `subscription for callback '%s' was unsubscribed`,
-      mode,
-      callbackUrl
-    )
+    this.log.info(`subscription for callback '%s' was deleted`, callbackUrl)
   }
 
   reply.code(200).send()
@@ -423,6 +449,12 @@ Server.prototype._unsubscribe = function(sub) {
   })
 }
 
+Server.prototype._cleanExpiredSubscriptions = function() {
+  return this.subscriptionCollection.deleteMany({
+    leaseEndAt: { $lte: new Date() }
+  })
+}
+
 /**
  *
  *
@@ -459,9 +491,11 @@ Server.prototype._createSubscription = async function(subscription) {
       // create new subscription
       await this.subscriptionCollection.insertOne({
         callbackUrl: subscription.callbackUrl,
+        callbackQuery: subscription.callbackQuery,
         mode: subscription.mode,
         topic: subscription.topic,
         leaseSeconds: subscription.leaseSeconds,
+        leaseEndAt: new Date(Date.now() + subscription.leaseSeconds * 1000),
         secret: subscription.secret,
         protocol: subscription.protocol,
         token: subscription.token,
@@ -484,22 +518,25 @@ Server.prototype._createSubscription = async function(subscription) {
           $set: {
             leaseSeconds: subscription.leaseSeconds,
             updatedAt: new Date(),
+            leaseEndAt: new Date(Date.now() + subscription.leaseSeconds * 1000),
             token: subscription.token
           }
         }
       )
     } catch (err) {
-      throw Boom.wrap(err, 500, 'Subscription could not be created')
+      throw Boom.wrap(err, 500, 'Subscription could not be renewed')
     }
   }
 }
 
 Server.prototype._registerHandlers = function() {
-  this.server.post('/', Schemas.subscriptionRequest, (req, resp) =>
+  this.server.post('/', { schema: Schemas.subscriptionRequest }, (req, resp) =>
     this._handleSubscriptionRequest(req, resp)
   )
-  this.server.post('/publish', Schemas.publishingRequest, (req, resp) =>
-    this._handlePublishRequest(req, resp)
+  this.server.post(
+    '/publish',
+    { schema: Schemas.publishingRequest },
+    (req, resp) => this._handlePublishRequest(req, resp)
   )
   this.server.get('/subscriptions', (req, resp) =>
     this._handleSubscriptionListRequest(req, resp)

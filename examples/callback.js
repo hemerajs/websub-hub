@@ -1,8 +1,8 @@
 const fastify = require('fastify')()
 
-fastify.post('/', function(req, res) {
-  console.log(req.body)
-  res.send(req.body)
+fastify.get('/', function(req, res) {
+  console.log(req.query)
+  res.send(req.query)
 })
 
 fastify.listen(5000, err => {
