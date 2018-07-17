@@ -17,7 +17,7 @@
     "websub-hub": "./lib/bin.js"
   },
   "engines": {
-    "node": ">=6"
+    "node": ">=8"
   },
   "keywords": [
     "webshub-hub",
@@ -26,20 +26,17 @@
     "hub"
   ],
   "dependencies": {
-    "axios": "0.16.2",
-    "body": "5.1.0",
-    "boom": "5.1.0",
-    "es6-promisify": "5.0.0",
-    "fastify": "0.21.0",
-    "fastify-mongodb": "0.1.0",
-    "hoek": "4.1.1",
-    "hyperid": "1.2.0",
-    "jsonstream": "1.0.3",
-    "jsonwebtoken": "7.4.1",
-    "mime-types": "2.1.15",
-    "node-expat": "2.3.15",
-    "promise-retry": "1.1.1",
-    "rxjs": "5.4.0",
-    "ws": "3.0.0"
+    "boom": "^7.2.0",
+    "fastify": "1.8.0",
+    "fastify-boom": "^0.1.0",
+    "fastify-formbody": "^2.0.0",
+    "fastify-mongodb": "0.8.2",
+    "got": "^8.3.2",
+    "hoek": "^5.0.3",
+    "hyperid": "^1.4.1",
+    "jsonwebtoken": "^8.3.0",
+    "mime-types": "^2.1.18",
+    "p-event": "^2.1.0",
+    "p-map": "^1.2.0"
   }
 }

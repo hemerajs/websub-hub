@@ -22,7 +22,7 @@
     "websub-hub": "./cli.js"
   },
   "engines": {
-    "node": ">=6"
+    "node": ">=8"
   },
   "devDependencies": {
     "websub-hub": "^0.0.4"

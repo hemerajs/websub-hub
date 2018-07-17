@@ -13,28 +13,31 @@
 A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 </p>
 
-- __Node:__ >= 8.0
-- __Lead Maintainer:__ [Dustin Deus](https://github.com/StarpTech)
-- __Status:__ Not maintained and not ready for production
+- **Node:** >= 8.0
+- **Lead Maintainer:** [Dustin Deus](https://github.com/StarpTech)
+- **Status:** In active development
 
 ## Expectations
 
 - **Highly performant:** A single node can handle thousands of subscriptions.
 - **Scalable:** Scale the hub in minutes. We choose monogdb as distributed storage.
-- **Efficient:** Only distribute delta updates.
-- **Websocket:** Use websockets to get updates in realtime.
-- **Standardized** We're trying to be compliant with the W3C WebSub specification.
+- **Efficient:** The difference (or "delta") may be computed by the hub and sent to all subscribers.
+- **Auditing:** Documenting the sequence of activities that have affected system by individual publishers/subscribers.
+- **Standardized** We're trying to be full compliant with the W3C WebSub specification.
 - **Developer friendly** Provide an easy interface to configure and use the hub.
 
 ## Specification
+
 https://w3c.github.io/websub/
 
 ## Installation
+
 ```
 $ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
 $ npm i -g webpub-server
 $ websub-hub -l info -m mongodb://localhost:27017/hub
 ```
+
 ## Getting started
 
 ```
@@ -44,6 +47,7 @@ $ node examples\callback.js
 ```
 
 ## Subscribe
+
 As soon as you want to subscribe to a topic you can initiate a subscription request. The subscriber has to verify that action as mentioned above.
 
 ```js
@@ -52,7 +56,7 @@ const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
 s.subscribe({
   topic: 'http://127.0.0.1:6000',
   callbackUrl: 'http://127.0.0.1:5000'
-}).then((response) => {})
+}).then(response => {})
 ```
 
 ## Unsubscribe
@@ -63,7 +67,7 @@ const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
 s.unsubscribe({
   topic: 'http://127.0.0.1:6000',
   callbackUrl: 'http://127.0.0.1:5000'
-}).then((response) => {})
+}).then(response => {})
 ```
 
 ## Publish
@@ -71,10 +75,11 @@ s.unsubscribe({
 ```js
 const Publisher = require('websub-hub').publisher
 const p = new Publisher({ hubUrl: 'http://127.0.0.1:3000' })
-p.publish('http://127.0.0.1:6000').then((response) => {})
+p.publish('http://127.0.0.1:6000').then(response => {})
 ```
 
 ## Test
+
 ```
 $ npm run test
 ```

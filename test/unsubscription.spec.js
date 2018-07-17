@@ -2,29 +2,25 @@
 
 const Code = require('code')
 const expect = Code.expect
-const Axios = require('axios')
+const Got = require('got')
 const Hub = require('./../packages/websub-hub').server
 const MongoInMemory = require('mongo-in-memory')
-const MockAdapter = require('axios-mock-adapter')
 const Sinon = require('sinon')
+const Nock = require('nock')
+const { parse } = require('url')
 
-describe('Basic Unsubscription', function () {
+describe('Basic Unsubscription', function() {
   const PORT = 3000
   let hub
   let mongoInMemory
   let topic = 'http://testblog.de'
 
-  // Start up our own nats-server
-  before(function (done) {
+  before(function(done) {
     mongoInMemory = new MongoInMemory()
     mongoInMemory.start(() => {
       hub = new Hub({
         timeout: 500,
         logLevel: 'debug',
-        retry: {
-          retries: 1,
-          randomize: false
-        },
         mongo: {
           url: mongoInMemory.getMongouri('hub')
         }
@@ -37,8 +33,7 @@ describe('Basic Unsubscription', function () {
     })
   })
 
-  // Shutdown our server after we are done
-  after(function (done) {
+  after(function(done) {
     hub.close().then(() => {
       mongoInMemory.stop(() => {
         done()
@@ -46,141 +41,128 @@ describe('Basic Unsubscription', function () {
     })
   })
 
-  it('Should be able to unsubscribe an active subscription', function () {
+  it('Should be able to unsubscribe an active subscription', async function() {
     const callbackUrl = 'http://127.0.0.1:3001'
-
-    const mock = new MockAdapter(hub.httpClient)
-
-    const callbackUrlCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).reply(function (config) {
-      callbackUrlCall()
-      return [200, config.data]
-    })
-
-    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
+    const createSubscriptionBody = {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
       'hub.topic': topic + '/feeds'
-    }).then((response) => {
-      expect(response.status).to.be.equals(200)
-      return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
+    }
+
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .twice()
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [200, { ...query }]
+      })
+
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
+    })
+
+    expect(response.statusCode).to.be.equals(200)
+
+    response = await Got.post(`http://localhost:${PORT}/`, {
+      body: {
         'hub.callback': callbackUrl,
         'hub.mode': 'unsubscribe',
         'hub.topic': topic + '/feeds'
-      }).then((response) => {
-        expect(response.status).to.be.equals(200)
-        expect(callbackUrlCall.called).to.be.equals(true)
-        mock.restore()
-      })
+      }
     })
+
+    verifyIntentMock.done()
+    expect(response.statusCode).to.be.equals(200)
   })
 
-  it('Should respond with 200 also when subscription does not exist', function () {
+  it('Should not be able to unsubscribe an active subscription because subscriber does not respond with 2xx', async function() {
     const callbackUrl = 'http://127.0.0.1:3001'
-
-    const mock = new MockAdapter(hub.httpClient)
-
-    const callbackUrlCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).reply(function (config) {
-      callbackUrlCall()
-      return [200, config.data]
-    })
-
-    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
+    const createSubscriptionBody = {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
       'hub.topic': topic + '/feeds'
-    }).then((response) => {
-      expect(response.status).to.be.equals(200)
-      return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'unsubscribe',
-        'hub.topic': topic + '/blog/feeds'
-      }).catch((error) => {
-        expect(error.response.status).to.be.equals(200)
-        expect(callbackUrlCall.called).to.be.equals(true)
-        mock.restore()
+    }
+
+    const verifySubscriptionIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [200, { ...query }]
       })
+
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
     })
+
+    verifySubscriptionIntentMock.done()
+    expect(response.statusCode).to.be.equals(200)
+
+    const verifyUnsubscriptionIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [404]
+      })
+
+    try {
+      response = await Got.post(`http://localhost:${PORT}/`, {
+        body: {
+          'hub.callback': callbackUrl,
+          'hub.mode': 'unsubscribe',
+          'hub.topic': topic + '/feeds'
+        }
+      })
+    } catch (err) {
+      expect(err.statusCode).to.be.equals(403)
+    }
+    verifyUnsubscriptionIntentMock.done()
   })
 
-  it('Should not be able to unsubscribe an active subscription because subscriber does not respond with 2xx', function () {
+  it('Should not be able to unsubscribe an active subscription because subscriber respond with wrong challenge', async function() {
     const callbackUrl = 'http://127.0.0.1:3001'
-
-    const mock = new MockAdapter(hub.httpClient)
-
-    const callbackUrlCall = Sinon.spy()
-    const callbackUrlCall2 = Sinon.spy()
-
-    mock.onPost(callbackUrl).replyOnce(function (config) {
-      callbackUrlCall()
-      return [200, config.data]
-    })
-
-    mock.onPost(callbackUrl).replyOnce(function (config) {
-      callbackUrlCall2()
-      return [401, config.data]
-    })
-
-    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
+    const createSubscriptionBody = {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
       'hub.topic': topic + '/feeds'
-    }).then((response) => {
-      expect(response.status).to.be.equals(200)
-      return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'unsubscribe',
-        'hub.topic': topic + '/feeds'
-      }).catch((error) => {
-        expect(error.response.status).to.be.equals(403)
-        expect(callbackUrlCall.called).to.be.equals(true)
-        expect(callbackUrlCall2.called).to.be.equals(true)
-        mock.restore()
+    }
+
+    const verifySubscriptionIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [200, { ...query }]
       })
-    })
-  })
 
-  it('Should not be able to unsubscribe an active subscription because subscriber respond with wrong challenge', function () {
-    const callbackUrl = 'http://127.0.0.1:3001'
-
-    const mock = new MockAdapter(hub.httpClient)
-
-    const callbackUrlCall = Sinon.spy()
-    const callbackUrlCall2 = Sinon.spy()
-
-    mock.onPost(callbackUrl).replyOnce(function (config) {
-      callbackUrlCall()
-      return [200, config.data]
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
     })
 
-    // respond with wrong challenge key
-    mock.onPost(callbackUrl).replyOnce(function (config) {
-      const data = JSON.parse(config.data)
-      data['hub.challenge'] = '123'
-      callbackUrlCall2()
-      return [200, JSON.stringify(data)]
-    })
+    verifySubscriptionIntentMock.done()
+    expect(response.statusCode).to.be.equals(200)
 
-    return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
-      'hub.callback': callbackUrl,
-      'hub.mode': 'subscribe',
-      'hub.topic': topic + '/feeds'
-    }).then((response) => {
-      expect(response.status).to.be.equals(200)
-      return Axios.default.post(`http://localhost:${PORT}/subscribe`, {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'unsubscribe',
-        'hub.topic': topic + '/feeds'
+    const verifyUnsubscriptionIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [200, { ...query, ...{ 'hub.challenge': 'wrong' } }]
       })
-      .catch((error) => {
-        expect(error.response.status).to.be.equals(403)
-        expect(callbackUrlCall.called).to.be.equals(true)
-        expect(callbackUrlCall2.called).to.be.equals(true)
-        mock.restore()
+
+    try {
+      response = await Got.post(`http://localhost:${PORT}/`, {
+        body: {
+          'hub.callback': callbackUrl,
+          'hub.mode': 'unsubscribe',
+          'hub.topic': topic + '/feeds'
+        }
       })
-    })
+    } catch (err) {
+      expect(err.statusCode).to.be.equals(403)
+    }
+    verifyUnsubscriptionIntentMock.done()
   })
 })

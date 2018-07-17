@@ -1,22 +1,20 @@
 'use strict'
 
-const Axios = require('axios')
+const Got = require('got')
 const Hoek = require('hoek')
 
 const defaultOptions = {
   timeout: 2000,
-  hubUrl: ''
+  baseUrl: ''
 }
 
-function Publisher (options) {
+function Publisher(options) {
   this.options = Hoek.applyToDefaults(defaultOptions, options || {})
-  this.httpClient = Axios.create({
-    timeout: this.options.timeout
-  })
+  this.httpClient = Got
 }
 
-Publisher.prototype.publish = function (url) {
-  return this.httpClient.post(this.options.hubUrl + '/publish', {
+Publisher.prototype.publish = function(url) {
+  return this.httpClient.post(this.options.baseUrl + '/publish', {
     'hub.mode': 'publish',
     'hub.url': url
   })
