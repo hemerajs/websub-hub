@@ -9,6 +9,7 @@
     "bootstrap": "lerna bootstrap",
     "format": "pretty-quick",
     "setup": "npm i && npm run bootstrap",
+    "publish": "lerna publish",
     "lint": "eslint ./**/*.js",
     "coverage": "npm run test && nyc report --reporter=html"
   },
