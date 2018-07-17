@@ -1,6 +1,6 @@
 {
   "name": "websub-hub",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "WebSub Hub Server for NodeJs",
   "main": "./lib/index.js",
   "repository": {
