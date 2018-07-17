@@ -46,7 +46,8 @@ const defaultOptions = {
     }
   },
   mongo: {
-    url: ''
+    url: '',
+    useNewUrlParser: true
   },
   retries: 3,
   basePath: ''

@@ -28,16 +28,17 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 
 ## Roadmap
 
-- [X] Setup testing environment with CI
-- [X] Publishing
-- [X] Subscribing
-- [X] Subscription validation
-- [X] Leasable subscriptions (TTL)
-- [X] Signature validation
+- [x] Setup testing environment with CI
+- [x] Publishing
+- [x] Subscribing
+- [x] Subscription validation
+- [x] Leasable subscriptions (TTL)
+- [x] Signature validation
 - [ ] Content Distribution over HTTP
 - [ ] Auditing
 - [ ] Optimiz content distribution (delta updates)
 - [ ] Websocket support
+- [ ] Benchmarks
 
 ## Specification
 
