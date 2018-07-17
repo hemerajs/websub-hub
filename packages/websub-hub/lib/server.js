@@ -13,13 +13,11 @@ const Pino = require('pino')
 const Serializer = require('./serializer')
 const safeEqual = require('./safeEqual')
 const Crypto = require('crypto')
-const JSONStream = require('JSONStream')
 const PEvent = require('p-event')
-const GetStream = require('get-stream')
 const MimeTypes = require('mime-types')
 const PMap = require('p-map')
+const Stream = require('stream')
 const Url = require('url')
-const Sax = require('sax')
 
 module.exports = Server
 
@@ -38,23 +36,20 @@ const defaultOptions = {
   name: 'hub',
   port: 3000,
   address: '127.0.0.1',
-  timeout: 2000,
-  logLevel: 'error',
+  timeout: 3000,
+  logLevel: 'info',
   hubUrl: 'http://127.0.0.1:3000',
   collection: 'subscriptions',
-  jwt: {
-    secret: '',
-    options: {}
-  },
   fastify: {
     logger: {
-      level: 'error'
+      level: 'info'
     }
   },
   mongo: {
     url: ''
   },
-  retries: 3
+  retries: 3,
+  basePath: ''
 }
 
 /**
@@ -69,7 +64,10 @@ function Server(options) {
   this.server = Fastify(this.options)
   this.server.register(FastifyBoom)
   this.server.register(FormBody)
-  this.server.register(Mongodb, this.options.mongo).after(() => {
+  this.server.register(Mongodb, this.options.mongo).after(err => {
+    if (err) {
+      throw err
+    }
     const { db } = this.server.mongo
     this.subscriptionCollection = db.collection(this.options.collection)
     return this._setupDbIndizes()
@@ -154,55 +152,47 @@ Server.prototype._distributeContentHttp = async function(sub, content) {
   const headers = {}
 
   if (sub.format === 'json') {
-    headers['Content-Type'] = 'application/json'
-  } else {
-    headers['Content-Type'] = 'application/rss+xml'
+    headers['content-type'] = 'application/json'
+  } else if (sub.format === 'xml') {
+    headers['content-type'] = 'application/rss+xml'
   }
 
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
   if (sub.secret) {
-    const streamContent = await GetStream(content.stream)
-    headers['X-Hub-Signature'] = Crypto.createHmac('sha256', sub.secret)
-      .update(streamContent)
-      .digest('hex')
+    const stream1 = content.stream.pipe(new Stream.PassThrough())
+    const stream2 = content.stream.pipe(new Stream.PassThrough())
 
-    try {
-      await this.httpClient.post(sub.callbackUrl, {
-        body: streamContent,
-        query: sub.callbackQuery,
-        retries: this.options.retries,
-        headers,
-        timeout: this.options.timeout
-      })
-    } catch (err) {
-      // swallow
-      this.log.error(
-        err,
-        `Content could not be published to '%s'`,
-        sub.callbackUrl
-      )
-    }
-  } else {
-    const stream = content.stream.pipe(
-      this.httpClient.stream.post(sub.callbackUrl, {
-        query: sub.callbackQuery,
-        retries: this.options.retries,
-        headers,
-        timeout: this.options.timeout
-      })
-    )
-    return new Promise((resolve, reject) => {
-      stream.once('response', _ => resolve())
-      stream.once('error', err => {
-        this.log.error(
-          err,
-          `Content could not be published to '%s'`,
-          sub.callbackUrl
-        )
-        // swallow
-        resolve()
-      })
+    const hmac = Crypto.createHmac('sha256', sub.secret).setEncoding('hex')
+    const hashStream = stream1.pipe(hmac)
+
+    await PEvent(hashStream, 'readable')
+    headers['x-hub-signature'] = hmac.read()
+    return this._sendContentHttp(sub, stream2, headers)
+  }
+
+  return this._sendContentHttp(sub, content.stream, headers)
+}
+
+Server.prototype._sendContentHttp = async function(sub, source, headers) {
+  const stream = source.pipe(
+    this.httpClient.stream.post(sub.callbackUrl, {
+      query: sub.callbackQuery,
+      retries: this.options.retries,
+      headers,
+      timeout: this.options.timeout
     })
+  )
+
+  try {
+    await PEvent(stream, 'response')
+  } catch (err) {
+    this.log.error(
+      err,
+      `Content could not be published to '%s'`,
+      sub.callbackUrl
+    )
+
+    throw Boom.badRequest('Content could not be published')
   }
 }
 
@@ -247,9 +237,9 @@ Server.prototype._fetchTopicContent = async function(sub) {
   const headers = {}
 
   if (sub.format === 'json') {
-    headers.Accept = 'application/json'
-  } else {
-    headers.Accept = 'application/rss+xml'
+    headers.accept = 'application/json'
+  } else if (sub.format === 'xml') {
+    headers.accept = 'application/rss+xml'
   }
 
   let stream = null
@@ -266,18 +256,15 @@ Server.prototype._fetchTopicContent = async function(sub) {
     throw Boom.notFound('From topic could not be fetched')
   }
 
-  let contentType = 'json'
+  let contentType = sub.format
 
   const response = await PEvent(stream, 'response')
 
   if (response.headers) {
-    contentType = MimeTypes.extension(response.headers['Content-Type'])
+    contentType = MimeTypes.extension(response.headers['content-type'])
   }
 
-  const updated = await this._getUpdatedDate(stream, contentType)
-
   return {
-    updated,
     stream,
     contentType
   }
@@ -298,46 +285,6 @@ Server.prototype._getUpdatedDate = async function(stream, contentType) {
 
 /**
  *
- * @param {*} stream
- */
-Server.prototype._parseJSONUpdateDate = function(stream) {
-  return new Promise(resolve => {
-    const jsonParser = JSONStream.parse('updated')
-    const parser = stream.pipe(jsonParser)
-    parser.on('data', function(text) {
-      resolve(new Date(text))
-      parser.destroy()
-    })
-  })
-}
-
-/**
- *
- * @param {*} stream
- */
-Server.prototype._parseXMLUpdateDate = function(stream) {
-  return new Promise(resolve => {
-    let onUpdatedField = false
-    let abort = false
-    const xmlParser = Sax.createStream()
-    stream.pipe(xmlParser)
-    xmlParser.onopentag = function(name) {
-      if (name === 'updated') {
-        onUpdatedField = true
-      }
-    }
-    xmlParser.ontext = function(text) {
-      if (onUpdatedField && abort === false) {
-        xmlParser.end()
-        abort = true
-        resolve(new Date(text))
-      }
-    }
-  })
-}
-
-/**
- *
  *
  * @param {any} req
  * @param {any} reply
@@ -349,29 +296,14 @@ Server.prototype._handleSubscriptionRequest = async function(req, reply) {
   const format = req.body['hub.format']
   const challenge = this.hyperid()
 
-  const topicUrlParsed = Url.parse(req.body['hub.topic'], true)
+  const normalizedTopicUrl = normalizeUrl(req.body['hub.topic'])
+  const topicQuery = normalizedTopicUrl.query
+  const topicUrl = normalizedTopicUrl.url
 
-  const topicQuery = topicUrlParsed.query
-  // remove query to get a normalized url without query params
-  topicUrlParsed.search = ''
-  topicUrlParsed.query = {}
-
-  let topicUrl = Url.format(topicUrlParsed, {
-    search: false,
-    fragment: false
-  })
-
-  const callbackUrlParsed = Url.parse(req.body['hub.callback'], true)
-  const protocol = callbackUrlParsed.protocol
-
-  const callbackQuery = callbackUrlParsed.query
-  callbackUrlParsed.search = ''
-  callbackUrlParsed.query = {}
-
-  let callbackUrl = Url.format(callbackUrlParsed, {
-    search: false,
-    fragment: false
-  })
+  const normalizedCallbackUrl = normalizeUrl(req.body['hub.callback'])
+  const callbackQuery = normalizedCallbackUrl.query
+  const callbackUrl = normalizedCallbackUrl.url
+  const protocol = normalizedCallbackUrl.protocol
 
   const sub = {
     mode,
@@ -494,7 +426,6 @@ Server.prototype._createSubscription = async function(subscription) {
         leaseEndAt: new Date(Date.now() + subscription.leaseSeconds * 1000),
         secret: subscription.secret,
         protocol: subscription.protocol,
-        token: subscription.token,
         format: subscription.format,
         createdAt: new Date()
       })
@@ -526,15 +457,17 @@ Server.prototype._createSubscription = async function(subscription) {
 }
 
 Server.prototype._registerHandlers = function() {
-  this.server.post('/', { schema: Schemas.subscriptionRequest }, (req, resp) =>
-    this._handleSubscriptionRequest(req, resp)
+  this.server.post(
+    this.options.basePath + '/',
+    { schema: Schemas.subscriptionRequest },
+    (req, resp) => this._handleSubscriptionRequest(req, resp)
   )
   this.server.post(
-    '/publish',
+    this.options.basePath + '/publish',
     { schema: Schemas.publishingRequest },
     (req, resp) => this._handlePublishRequest(req, resp)
   )
-  this.server.get('/subscriptions', (req, resp) =>
+  this.server.get(this.options.basePath + '/subscriptions', (req, resp) =>
     this._handleSubscriptionListRequest(req, resp)
   )
 }
@@ -545,4 +478,22 @@ Server.prototype.listen = function() {
 
 Server.prototype.close = function() {
   return this.server.close()
+}
+
+function normalizeUrl(url) {
+  const parsedUrl = Url.parse(url, true)
+
+  const query = parsedUrl.query
+  // remove query to get a normalized url without query params
+  parsedUrl.search = ''
+  parsedUrl.query = {}
+
+  return {
+    url: Url.format(parsedUrl, {
+      search: false,
+      fragment: false
+    }),
+    protocol: parsedUrl.protocol,
+    query
+  }
 }

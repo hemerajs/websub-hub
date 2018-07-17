@@ -1,6 +1,8 @@
 const fastify = require('fastify')()
 
-fastify.get('/', function(req, res) {
+fastify.get('/feeds', function(req, res) {
+  console.log('Content provided')
+
   res.send({
     version: 'https://jsonfeed.org/version/1',
     title: 'My Example Feed',
@@ -24,5 +26,9 @@ fastify.get('/', function(req, res) {
 
 fastify.listen(6000, err => {
   if (err) throw err
-  console.log(`server listening on ${fastify.server.address().port}`)
+  console.log(
+    'Feed provider listening on: ' +
+      'http://localhost:' +
+      fastify.server.address().port
+  )
 })

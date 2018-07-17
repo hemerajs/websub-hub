@@ -1,11 +1,20 @@
 const fastify = require('fastify')()
 
 fastify.get('/', function(req, res) {
-  console.log(req.query)
+  console.log('subscription verified', req.body)
   res.send(req.query)
+})
+
+fastify.post('/', function(req, res) {
+  console.log('received blog content', req.body)
+  res.send()
 })
 
 fastify.listen(5000, err => {
   if (err) throw err
-  console.log(`server listening on ${fastify.server.address().port}`)
+  console.log(
+    'Subscriber callback listening on: ' +
+      'http://localhost:' +
+      fastify.server.address().port
+  )
 })

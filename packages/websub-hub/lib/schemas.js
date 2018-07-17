@@ -6,26 +6,15 @@ module.exports.subscriptionRequest = {
     type: 'object',
     properties: {
       'hub.callback': { format: 'uri' },
-      'hub.mode': { enum: ['subscribe', 'unsubscribe'] },
+      'hub.mode': { enum: ['subscribe', 'unsubscribe', 'publish'] },
       'hub.topic': { format: 'uri' },
       'hub.lease_seconds': { type: 'integer' },
       'hub.secret': { type: 'string', minLength: 12 },
+      'hub.url': { format: 'uri' },
       'hub.format': {
         enum: ['json', 'xml'],
         default: 'json'
       }
-    },
-    required: ['hub.topic', 'hub.mode', 'hub.callback', 'hub.format']
-  }
-}
-
-module.exports.publishingRequest = {
-  body: {
-    type: 'object',
-    properties: {
-      'hub.mode': { enum: ['publish'] },
-      'hub.url': { type: 'string' }
-    },
-    required: ['hub.mode', 'hub.url']
+    }
   }
 }

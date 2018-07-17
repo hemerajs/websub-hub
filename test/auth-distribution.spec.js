@@ -7,6 +7,8 @@ const Hub = require('./../packages/websub-hub').server
 const MongoInMemory = require('mongo-in-memory')
 const Crypto = require('crypto')
 const Sinon = require('sinon')
+const Nock = require('nock')
+const { parse } = require('url')
 
 describe('Authenticated Content Distribution', function() {
   const PORT = 3000
@@ -41,34 +43,13 @@ describe('Authenticated Content Distribution', function() {
     })
   })
 
-  it('Should be able to distribute content with secret mechanism', function() {
+  it('Should be able to distribute content with secret mechanism', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
-
-    const mock = new MockAdapter(hub.httpClient)
-
-    const callbackUrlCall = Sinon.spy()
-    const distributeContentCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).replyOnce(function(config) {
-      callbackUrlCall()
-      return [200, config.data]
-    })
-
-    mock.onPost(callbackUrl).replyOnce(function(config) {
-      const signature = config.headers['X-Hub-Signature']
-      expect(
-        Crypto.createHmac('sha256', secret)
-          .update(config.data)
-          .digest('hex') === signature
-      ).to.be.equals(true)
-      distributeContentCall()
-
-      return [200]
-    })
-
-    mock.onGet(topic + '/feeds').reply(200, {
+    const secret = '123456789101112'
+    const blogFeeds = {
       version: 'https://jsonfeed.org/version/1',
       title: 'My Example Feed',
+      updated: '2003-12-13T18:30:02Z',
       home_page_url: 'https://example.org/',
       feed_url: 'https://example.org/feed.json',
       items: [
@@ -83,65 +64,72 @@ describe('Authenticated Content Distribution', function() {
           url: 'https://example.org/initial-post'
         }
       ]
+    }
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds',
+      'hub.secret': secret
+    }
+
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
+
+    const topicContentMock = Nock(topic)
+      .get('/feeds')
+      .query(true)
+      .reply(200, blogFeeds)
+
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
     })
 
-    // Create subscription and topic
-    return Got.post(`http://localhost:${PORT}/subscribe`, {
+    expect(response.statusCode).to.be.equals(200)
+
+    const verifyPublishedContentMock = Nock(callbackUrl)
+      .post('/')
+      .query(true)
+      .reply(function(uri, requestBody) {
+        expect(this.req.headers['x-hub-signature']).to.be.exist()
+        expect(this.req.headers['x-hub-signature']).to.be.equals(
+          Crypto.createHmac('sha256', secret)
+            .update(JSON.stringify(blogFeeds))
+            .digest('hex')
+        )
+        expect(requestBody).to.be.equals(blogFeeds)
+        return [200]
+      })
+
+    response = await Got.post(`http://localhost:${PORT}/publish`, {
       body: {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds',
-        'hub.secret': secret
+        'hub.mode': 'publish',
+        'hub.url': topic + '/feeds'
       }
     })
-      .then(response => {
-        expect(response.status).to.be.equals(200)
-      })
-      .then(() => {
-        return Got.post(`http://localhost:${PORT}/publish`, {
-          body: {
-            'hub.mode': 'publish',
-            'hub.url': topic + '/feeds'
-          }
-        }).then(response => {
-          expect(response.status).to.be.equals(200)
 
-          expect(callbackUrlCall.called).to.be.equals(true)
-          expect(distributeContentCall.called).to.be.equals(true)
-          mock.restore()
-        })
-      })
+    expect(response.statusCode).to.be.equals(200)
+
+    verifyIntentMock.done()
+    topicContentMock.done()
+    verifyPublishedContentMock.done()
   })
 
-  it('Subscriber has verified that the content was manipulated', function() {
+  it('Subscriber has verified that the content was manipulated', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
-
-    const mock = new MockAdapter(hub.httpClient)
-
-    const callbackUrlCall = Sinon.spy()
-    const distributeContentCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).replyOnce(function(config) {
-      callbackUrlCall()
-      return [200, config.data]
-    })
-
-    mock.onPost(callbackUrl).replyOnce(function(config) {
-      const signature = config.headers['X-Hub-Signature']
-
-      if (
-        Crypto.createHmac('sha256', 'differentKey')
-          .update(config.data)
-          .digest('hex') !== signature
-      ) {
-        distributeContentCall()
-        return [401]
-      }
-    })
-
-    mock.onGet(topic + '/feeds').reply(200, {
+    const secret = '123456789101112'
+    const blogFeeds = {
       version: 'https://jsonfeed.org/version/1',
       title: 'My Example Feed',
+      updated: '2003-12-13T18:30:02Z',
       home_page_url: 'https://example.org/',
       feed_url: 'https://example.org/feed.json',
       items: [
@@ -156,32 +144,67 @@ describe('Authenticated Content Distribution', function() {
           url: 'https://example.org/initial-post'
         }
       ]
+    }
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds',
+      'hub.secret': secret
+    }
+
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
+
+    const topicContentMock = Nock(topic)
+      .get('/feeds')
+      .query(true)
+      .reply(200, blogFeeds)
+
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
     })
 
-    // Create subscription and topic
-    return Got.post(`http://localhost:${PORT}/subscribe`, {
-      body: {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds',
-        'hub.secret': secret
-      }
-    })
-      .then(response => {
-        expect(response.status).to.be.equals(200)
+    expect(response.statusCode).to.be.equals(200)
+
+    const verifyPublishedContentMock = Nock(callbackUrl)
+      .post('/')
+      .query(true)
+      .reply(function(uri, requestBody) {
+        expect(this.req.headers['x-hub-signature']).to.be.exist()
+        expect(requestBody).to.be.equals(blogFeeds)
+
+        if (
+          Crypto.createHmac('sha256', 'differentSecret')
+            .update(JSON.stringify(blogFeeds))
+            .digest('hex') !== this.req.headers['x-hub-signature']
+        ) {
+          return [401, '']
+        }
+        return [200, '']
       })
-      .then(() => {
-        return Got.post(`http://localhost:${PORT}/publish`, {
-          body: {
-            'hub.mode': 'publish',
-            'hub.url': topic + '/feeds'
-          }
-        }).then(response => {
-          expect(response.status).to.be.equals(200)
-          expect(callbackUrlCall.called).to.be.equals(true)
-          expect(distributeContentCall.called).to.be.equals(true)
-          mock.restore()
-        })
+
+    try {
+      response = await Got.post(`http://localhost:${PORT}/publish`, {
+        body: {
+          'hub.mode': 'publish',
+          'hub.url': topic + '/feeds'
+        }
       })
+    } catch (err) {
+      expect(err.statusCode).to.be.equals(400)
+    }
+
+    verifyIntentMock.done()
+    topicContentMock.done()
+    verifyPublishedContentMock.done()
   })
 })

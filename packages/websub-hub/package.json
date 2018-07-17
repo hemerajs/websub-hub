@@ -30,16 +30,13 @@
     "fastify": "1.8.0",
     "fastify-boom": "^0.1.0",
     "fastify-formbody": "^2.0.0",
-    "fastify-mongodb": "0.8.1",
-    "get-stream": "^3.0.0",
+    "fastify-mongodb": "0.8.2",
     "got": "^8.3.2",
     "hoek": "^5.0.3",
     "hyperid": "^1.4.1",
-    "jsonstream": "^1.0.3",
     "jsonwebtoken": "^8.3.0",
     "mime-types": "^2.1.18",
     "p-event": "^2.1.0",
-    "p-map": "^1.2.0",
-    "sax": "^1.2.4"
+    "p-map": "^1.2.0"
   }
 }

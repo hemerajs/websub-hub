@@ -89,7 +89,7 @@ describe('Basic Subscription list', function() {
       json: true
     })
     expect(response.body.length).to.be.equals(1)
-    expect(response.body[0].callbackUrl).to.be.equals('http://127.0.0.1:3002')
+    expect(response.body[0].callbackUrl).to.be.equals('http://127.0.0.1:3002/')
 
     verifyIntentMock.done()
   })

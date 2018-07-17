@@ -4,7 +4,6 @@
 
 const Path = require('path')
 const Fs = require('fs')
-const Assert = require('assert')
 const Minimist = require('minimist')
 const Hub = require('websub-hub')
 
@@ -18,11 +17,14 @@ function start(opts) {
     stop(0)
   }
 
-  runHub(opts)
+  runHub(opts).catch(err => {
+    console.error(err)
+    stop(1)
+  })
 }
 
-function runHub(opts) {
-  var file = null
+async function runHub(opts) {
+  let file = null
   try {
     file = require(Path.resolve(process.cwd(), opts.file))
   } catch (e) {}
@@ -42,18 +44,11 @@ function runHub(opts) {
 
   const hub = new Hub(opts.file ? Object.assign(options, file) : options)
 
-  hub
-    .listen(opts.port, opts.address)
-    .then(() => {
-      console.log(
-        `Server listening on http://localhost:${
-          hub.server.server.address().port
-        }`
-      )
-    })
-    .catch(err => {
-      Assert.ifError(err)
-    })
+  await hub.listen(opts.port, opts.address)
+
+  console.log(
+    `Server listening on http://localhost:${hub.server.server.address().port}`
+  )
 }
 
 function cli() {
@@ -73,9 +68,8 @@ function cli() {
       },
       default: {
         port: 3000,
-        timeout: 2000,
         address: '127.0.0.1',
-        'log-level': 'fatal',
+        'log-level': 'error',
         'mongodb-url': 'mongodb://localhost:27017/hub'
       }
     })

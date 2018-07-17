@@ -8,8 +8,11 @@ const MongoInMemory = require('mongo-in-memory')
 const Sinon = require('sinon')
 const Fs = require('fs')
 const Path = require('path')
+const Nock = require('nock')
+const { parse } = require('url')
+const getStream = require('get-stream')
 
-describe.only('Content Stream', function() {
+describe('Content Stream', function() {
   const PORT = 3000
   let hub
   let mongoInMemory
@@ -42,114 +45,137 @@ describe.only('Content Stream', function() {
     })
   })
 
-  it('Should be able to stream json', function() {
+  it('Should be able to stream json', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
+    const blogFeeds = Fs.readFileSync(
+      __dirname + '/fixtures/sample.json',
+      'utf8'
+    )
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }
 
-    const mock = new MockAdapter(hub.httpClient)
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
 
-    const callbackUrlCall = Sinon.spy()
-    const distributeContentCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).replyOnce(function(config) {
-      callbackUrlCall()
-      return [200, config.data]
-    })
-
-    mock.onPost(callbackUrl).replyOnce(function(config) {
-      distributeContentCall()
-      return [200]
-    })
-
-    mock
-      .onGet(topic + '/feeds')
+    const topicContentMock = Nock(topic)
+      .get('/feeds')
+      .query(true)
       .reply(
         200,
-        Fs.createReadStream(Path.join(__dirname, 'fixtures/sample.json')),
+        function() {
+          return Fs.createReadStream(
+            Path.join(__dirname, 'fixtures/sample.json')
+          )
+        },
         {
           'Content-Type': 'application/json'
         }
       )
 
-    // Create subscription and topic
-    return Got.post(`http://localhost:${PORT}/subscribe`, {
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
+    })
+
+    expect(response.statusCode).to.be.equals(200)
+
+    const verifyPublishedContentMock = Nock(callbackUrl)
+      .post('/')
+      .query(true)
+      .reply(function(uri, requestBody) {
+        expect(this.req.headers['x-hub-signature']).to.be.not.exist()
+        expect(requestBody).to.be.equal(JSON.parse(blogFeeds))
+        return [200]
+      })
+
+    response = await Got.post(`http://localhost:${PORT}/publish`, {
       body: {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds'
+        'hub.mode': 'publish',
+        'hub.url': topic + '/feeds'
       }
     })
-      .then(response => {
-        expect(response.status).to.be.equals(200)
-      })
-      .then(() => {
-        return Got.post(`http://localhost:${PORT}/publish`, {
-          body: {
-            'hub.mode': 'publish',
-            'hub.url': topic + '/feeds'
-          }
-        }).then(response => {
-          expect(response.status).to.be.equals(200)
 
-          expect(callbackUrlCall.called).to.be.equals(true)
-          expect(distributeContentCall.called).to.be.equals(true)
-          mock.restore()
-        })
-      })
+    expect(response.statusCode).to.be.equals(200)
+
+    verifyIntentMock.done()
+    topicContentMock.done()
+    verifyPublishedContentMock.done()
   })
 
-  it('Should be able to stream xml', function() {
+  it('Should be able to stream xml', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
+    const blogFeeds = Fs.readFileSync(
+      __dirname + '/fixtures/sample.xml',
+      'utf8'
+    )
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds/xml',
+      'hub.format': 'xml'
+    }
 
-    const mock = new MockAdapter(hub.httpClient)
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
 
-    const callbackUrlCall = Sinon.spy()
-    const distributeContentCall = Sinon.spy()
-
-    mock.onPost(callbackUrl).replyOnce(function(config) {
-      callbackUrlCall()
-      return [200, config.data]
-    })
-
-    mock.onPost(callbackUrl).replyOnce(function(config) {
-      distributeContentCall()
-      return [200]
-    })
-
-    mock
-      .onGet(topic + '/feeds')
+    const topicContentMock = Nock(topic)
+      .get('/feeds/xml')
+      .query(true)
       .reply(
         200,
-        Fs.createReadStream(Path.join(__dirname, 'fixtures/sample.xml')),
+        function() {
+          return Fs.createReadStream(
+            Path.join(__dirname, 'fixtures/sample.xml')
+          )
+        },
         {
-          'Content-Type': 'application/xml'
+          'Content-Type': 'application/rss+xml'
         }
       )
 
-    // Create subscription and topic
-    return Got.post(`http://localhost:${PORT}/subscribe`, {
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
+    })
+
+    expect(response.statusCode).to.be.equals(200)
+
+    const verifyPublishedContentMock = Nock(callbackUrl)
+      .post('/')
+      .query(true)
+      .reply(200, function(uri, requestBody) {
+        expect(this.req.headers['X-Hub-Signature']).to.be.not.exist()
+        expect(requestBody).to.be.equal(blogFeeds)
+      })
+
+    response = await Got.post(`http://localhost:${PORT}/publish`, {
       body: {
-        'hub.callback': callbackUrl,
-        'hub.mode': 'subscribe',
-        'hub.topic': topic + '/feeds',
-        'hub.format': 'xml'
+        'hub.mode': 'publish',
+        'hub.url': topic + '/feeds/xml'
       }
     })
-      .then(response => {
-        expect(response.status).to.be.equals(200)
-      })
-      .then(() => {
-        return Got.post(`http://localhost:${PORT}/publish`, {
-          body: {
-            'hub.mode': 'publish',
-            'hub.url': topic + '/feeds'
-          }
-        }).then(response => {
-          expect(response.status).to.be.equals(200)
 
-          expect(callbackUrlCall.called).to.be.equals(true)
-          expect(distributeContentCall.called).to.be.equals(true)
-          mock.restore()
-        })
-      })
+    expect(response.statusCode).to.be.equals(200)
+
+    verifyIntentMock.done()
+    topicContentMock.done()
+    verifyPublishedContentMock.done()
   })
 })
