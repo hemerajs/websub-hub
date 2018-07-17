@@ -5,7 +5,7 @@ const Hoek = require('hoek')
 
 const defaultOptions = {
   timeout: 2000,
-  baseUrl: ''
+  hubUrl: ''
 }
 
 function Publisher(options) {
@@ -14,7 +14,7 @@ function Publisher(options) {
 }
 
 Publisher.prototype.publish = function(url) {
-  return this.httpClient.post(this.options.baseUrl + '/publish', {
+  return this.httpClient.post(this.options.hubUrl + '/publish', {
     'hub.mode': 'publish',
     'hub.url': url
   })

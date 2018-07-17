@@ -5,7 +5,7 @@ const Got = require('got')
 
 const defaultOptions = {
   timeout: 2000,
-  baseUrl: ''
+  hubUrl: ''
 }
 
 function Subscriber(options) {
@@ -14,7 +14,7 @@ function Subscriber(options) {
 }
 
 Subscriber.prototype.subscribe = function(subscription) {
-  return this.httpClient.post(this.options.baseUrl + '/', {
+  return this.httpClient.post(this.options.hubUrl + '/', {
     'hub.callback': subscription.callbackUrl,
     'hub.mode': 'subscribe',
     'hub.topic': subscription.topic
@@ -22,7 +22,7 @@ Subscriber.prototype.subscribe = function(subscription) {
 }
 
 Subscriber.prototype.unsubscribe = function(subscription) {
-  return this.httpClient.post(this.options.baseUrl + '/', {
+  return this.httpClient.post(this.options.hubUrl + '/', {
     'hub.callback': subscription.callbackUrl,
     'hub.mode': 'unsubscribe',
     'hub.topic': subscription.topic
@@ -30,7 +30,7 @@ Subscriber.prototype.unsubscribe = function(subscription) {
 }
 
 Subscriber.prototype.list = function(subscription) {
-  return this.httpClient.get(this.options.baseUrl + '/subscriptions')
+  return this.httpClient.get(this.options.hubUrl + '/subscriptions')
 }
 
 module.exports = Subscriber

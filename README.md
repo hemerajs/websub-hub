@@ -41,14 +41,15 @@ $ websub-hub -l info -m mongodb://localhost:27017/hub
 ## Getting started
 
 ```
-$ node examples\server.js
-$ node examples\feed.js
+$ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
+$ node examples\hub.js
+$ node examples\blog.js
 $ node examples\callback.js
 ```
 
 ## Subscribe
 
-As soon as you want to subscribe to a topic you can initiate a subscription request. The subscriber has to verify that action as mentioned above.
+This will create a new subscription. The subscriber has to verify that action.
 
 ```js
 const Subscriber = require('websub-hub').subscriber
@@ -61,6 +62,8 @@ s.subscribe({
 
 ## Unsubscribe
 
+This will unsusbcribe a subscription. This action mustn't be verified.
+
 ```js
 const Subscriber = require('websub-hub').subscriber
 const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
@@ -71,6 +74,8 @@ s.unsubscribe({
 ```
 
 ## Publish
+
+This will notify all subscribers about updates.
 
 ```js
 const Publisher = require('websub-hub').publisher
