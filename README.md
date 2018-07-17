@@ -26,6 +26,19 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 - **Standardized** We're trying to be full compliant with the W3C WebSub specification.
 - **Developer friendly** Provide an easy interface to configure and use the hub.
 
+## Roadmap
+
+- [X] Setup testing environment with CI
+- [X] Publishing
+- [X] Subscribing
+- [X] Subscription validation
+- [X] Leasable subscriptions (TTL)
+- [X] Signature validation
+- [ ] Content Distribution over HTTP
+- [ ] Auditing
+- [ ] Optimiz content distribution (delta updates)
+- [ ] Websocket support
+
 ## Specification
 
 https://w3c.github.io/websub/
