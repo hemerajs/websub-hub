@@ -334,7 +334,7 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
   if (intentResult === verifiedState.DECLINED) {
     reply.send(Boom.forbidden('subscriber has declined'))
     return
-  } else if (intentResult === verifiedState.UNKNOWN) {
+  } else if (intentResult === verifiedState.HTTP_ERROR) {
     reply.send(Boom.forbidden('subscriber could not be verified'))
     return
   }
@@ -427,6 +427,7 @@ WebSubHub.prototype._createSubscription = async function(subscription) {
 
   if (isDuplicate === false) {
     try {
+      const currentDate = new Date()
       // create new subscription
       await this.subscriptionCollection.insertOne({
         mode: subscription.mode,
@@ -439,7 +440,8 @@ WebSubHub.prototype._createSubscription = async function(subscription) {
         secret: subscription.secret,
         protocol: subscription.protocol,
         format: subscription.format,
-        createdAt: new Date()
+        createdAt: currentDate,
+        updatedAt: currentDate
       })
     } catch (err) {
       throw Boom.wrap(err, 500, 'subscription could not be created')

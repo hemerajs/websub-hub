@@ -15,8 +15,11 @@ function Publisher(options) {
 
 Publisher.prototype.publish = function(url) {
   return this.httpClient.post(this.options.hubUrl + '/publish', {
-    'hub.mode': 'publish',
-    'hub.url': url
+    json: true,
+    body: {
+      'hub.mode': 'publish',
+      'hub.url': url
+    }
   })
 }
 

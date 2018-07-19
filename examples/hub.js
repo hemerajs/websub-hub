@@ -2,21 +2,27 @@
 
 const Hub = require('../packages/websub-hub')
 
-const hub = Hub({
-  port: 3000,
-  logLevel: 'info',
-  mongo: {
-    url: 'mongodb://localhost:27017/hub'
-  }
-})
-
-hub
-  .listen()
-  .then(() => {
-    hub.log.info(
-      'Hub listening on: ' +
-        'http://localhost:' +
-        hub.server.server.address().port
-    )
+module.exports = async function() {
+  const hub = Hub({
+    port: 3000,
+    logLevel: 'info',
+    mongo: {
+      url: 'mongodb://localhost:27017/hub'
+    }
   })
-  .catch(console.error)
+
+  await hub.listen()
+
+  hub.log.info(
+    'Hub listening on: ' +
+      'http://localhost:' +
+      hub.server.server.address().port
+  )
+}
+
+if (require.main === module) {
+  module.exports().catch(err => {
+    console.error(err)
+    process.exit(1)
+  })
+}

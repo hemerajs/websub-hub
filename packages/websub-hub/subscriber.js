@@ -13,24 +13,33 @@ function Subscriber(options) {
   this.httpClient = Got
 }
 
-Subscriber.prototype.subscribe = function(subscription) {
-  return this.httpClient.post(this.options.hubUrl + '/', {
-    'hub.callback': subscription.callbackUrl,
-    'hub.mode': 'subscribe',
-    'hub.topic': subscription.topic
+Subscriber.prototype.subscribe = function(topic, callbackUrl) {
+  return this.httpClient.post(this.options.hubUrl, {
+    json: true,
+    body: {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic
+    }
   })
 }
 
-Subscriber.prototype.unsubscribe = function(subscription) {
-  return this.httpClient.post(this.options.hubUrl + '/', {
-    'hub.callback': subscription.callbackUrl,
-    'hub.mode': 'unsubscribe',
-    'hub.topic': subscription.topic
+Subscriber.prototype.unsubscribe = function(topic, callbackUrl) {
+  return this.httpClient.post(this.options.hubUrl, {
+    json: true,
+    body: {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'unsubscribe',
+      'hub.topic': topic
+    }
   })
 }
 
-Subscriber.prototype.list = function(subscription) {
-  return this.httpClient.get(this.options.hubUrl + '/subscriptions')
+Subscriber.prototype.list = function(start, limit) {
+  return this.httpClient.get(this.options.hubUrl + '/subscriptions', {
+    json: true,
+    query: { start, limit }
+  })
 }
 
 module.exports = Subscriber
