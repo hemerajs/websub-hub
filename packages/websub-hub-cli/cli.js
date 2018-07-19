@@ -47,7 +47,7 @@ async function runHub(opts) {
   await hub.listen(opts.port, opts.address)
 
   console.log(
-    `Server listening on http://localhost:${hub.server.server.address().port}`
+    `Hub listening on http://localhost:${hub.server.server.address().port}`
   )
 }
 
@@ -56,7 +56,7 @@ function cli() {
     Minimist(process.argv.slice(2), {
       integer: ['port', 'timeout'],
       boolean: [],
-      string: ['log-level', 'address', 'file', 'mongodb-url'],
+      string: ['log-level', 'address', 'file', 'mongodb-url', 'name'],
       alias: {
         port: 'p',
         help: 'h',
@@ -68,6 +68,7 @@ function cli() {
       },
       default: {
         port: 3000,
+        name: 'myHub',
         address: '127.0.0.1',
         'log-level': 'error',
         'mongodb-url': 'mongodb://localhost:27017/hub'

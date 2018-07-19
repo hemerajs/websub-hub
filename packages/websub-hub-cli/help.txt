@@ -1,5 +1,8 @@
 Usage: websub-hub [opts] <file>
 
+  -n, --name
+      Name of your Hub
+
   -p, --port
       Port to listen on (default to 3000)
 
@@ -7,10 +10,10 @@ Usage: websub-hub [opts] <file>
       Address to listen on
 
   -l, --log-level
-      Log level (default to fatal)
+      Log level (default to info)
 
   -f, --file
-      Use custom config file
+      Use custom config file (JSON)
 
   -m, --mongodb-url
       Mongodb connection string (default to mongodb://localhost:27017/hub)
