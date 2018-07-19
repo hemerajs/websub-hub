@@ -17,6 +17,8 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 - **Lead Maintainer:** [Dustin Deus](https://github.com/StarpTech)
 - **Status:** In active development
 
+WebSub provides a common mechanism for communication between publishers of any kind of Web content and their subscribers, based on HTTP web hooks. Subscription requests are relayed through hubs, which validate and verify the request. Hubs then distribute new and updated content to subscribers when it becomes available.
+
 ## Expectations
 
 - **Highly performant:** A single node can handle thousands of subscriptions.

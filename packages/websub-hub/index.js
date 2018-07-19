@@ -70,7 +70,14 @@ function build(options) {
  */
 function WebSubHub(options) {
   this.options = options
-  this.server = Fastify(this.options)
+  this._configureLogger()
+
+  this.server = Fastify({
+    https: this.options.https,
+    logger: {
+      pinoInstance: this.log
+    }
+  })
   this.server.register(FastifyBoom)
   this.server.register(FormBody)
   this.server.register(Mongodb, this.options.mongo).after(err => {
@@ -87,8 +94,6 @@ function WebSubHub(options) {
   this.httpClient = Got
   this.hyperid = Hyperid()
   this._registerHttpHandler()
-
-  this._configureLogger()
 }
 
 WebSubHub.prototype._configureLogger = function() {
