@@ -186,6 +186,7 @@ WebSubHub.prototype._distributeContentHttp = async function(sub, content) {
   }
 
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
+  // https://w3c.github.io/websub/#signing-content
   if (sub.secret) {
     const stream1 = content.stream.pipe(new Stream.PassThrough())
     const stream2 = content.stream.pipe(new Stream.PassThrough())
@@ -194,7 +195,7 @@ WebSubHub.prototype._distributeContentHttp = async function(sub, content) {
     const hashStream = stream1.pipe(hmac)
 
     await PEvent(hashStream, 'readable')
-    headers['x-hub-signature'] = hmac.read()
+    headers['x-hub-signature'] = 'sha256=' + hmac.read()
     return this._sendContentHttp(sub, stream2, headers)
   }
 

@@ -97,8 +97,9 @@ describe('Authenticated Content Distribution', function() {
       .query(true)
       .reply(function(uri, requestBody) {
         expect(this.req.headers['x-hub-signature']).to.be.exist()
-        expect(this.req.headers['x-hub-signature']).to.be.equals(
-          Crypto.createHmac('sha256', secret)
+        const signature = this.req.headers['x-hub-signature'].split('=')
+        expect(signature[1]).to.be.equals(
+          Crypto.createHmac(signature[0], secret)
             .update(JSON.stringify(blogFeeds))
             .digest('hex')
         )
@@ -179,12 +180,13 @@ describe('Authenticated Content Distribution', function() {
       .query(true)
       .reply(function(uri, requestBody) {
         expect(this.req.headers['x-hub-signature']).to.be.exist()
+        const signature = this.req.headers['x-hub-signature'].split('=')
         expect(requestBody).to.be.equals(blogFeeds)
 
         if (
-          Crypto.createHmac('sha256', 'differentSecret')
+          Crypto.createHmac(signature[0], 'differentSecret')
             .update(JSON.stringify(blogFeeds))
-            .digest('hex') !== this.req.headers['x-hub-signature']
+            .digest('hex') !== signature[1]
         ) {
           return [401, '']
         }
