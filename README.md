@@ -37,6 +37,7 @@ WebSub provides a common mechanism for communication between publishers of any k
 - [x] Leasable subscriptions (TTL)
 - [x] Signature validation
 - [x] Content Distribution over HTTP
+- [ ] Discovery
 - [ ] Auditing
 - [ ] Optimize content distribution (delta updates)
 - [ ] Websocket support
