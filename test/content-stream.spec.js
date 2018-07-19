@@ -90,6 +90,10 @@ describe('Content Stream', function() {
       .query(true)
       .reply(function(uri, requestBody) {
         expect(this.req.headers['x-hub-signature']).to.be.not.exist()
+        expect(this.req.headers['link']).to.be.equals(
+          `<http://localhost:3000>; rel="hub"; <${topic +
+            '/feeds'}>; rel="self"`
+        )
         expect(requestBody).to.be.equal(JSON.parse(blogFeeds))
         return [200]
       })
@@ -159,7 +163,11 @@ describe('Content Stream', function() {
       .post('/')
       .query(true)
       .reply(200, function(uri, requestBody) {
-        expect(this.req.headers['X-Hub-Signature']).to.be.not.exist()
+        expect(this.req.headers['x-hub-signature']).to.be.not.exist()
+        expect(this.req.headers['link']).to.be.equals(
+          `<http://localhost:3000>; rel="hub"; <${topic +
+            '/feeds/xml'}>; rel="self"`
+        )
         expect(requestBody).to.be.equal(blogFeeds)
       })
 

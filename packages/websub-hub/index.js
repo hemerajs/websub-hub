@@ -40,11 +40,11 @@ const defaultOptions = {
   name: 'hub',
   port: 3000,
   address: 'localhost',
+  hubUrl: '',
   timeout: 2000,
   logLevel: 'info',
   prettyLog: false,
   logger: null,
-  basePath: '',
   fastify: {
     logger: {
       level: 'error'
@@ -94,6 +94,18 @@ function WebSubHub(options) {
   this.httpClient = Got
   this.hyperid = Hyperid()
   this._registerHttpHandler()
+}
+
+WebSubHub.prototype._getHubUrl = function() {
+  if (this.options.hubUrl) {
+    return this.options.hubUrl
+  }
+
+  return (
+    'http://' +
+    this.options.address +
+    (this.options.port ? ':' + this.options.port : '')
+  )
 }
 
 WebSubHub.prototype._configureLogger = function() {
@@ -184,6 +196,10 @@ WebSubHub.prototype._distributeContentHttp = async function(sub, content) {
   } else if (sub.format === 'xml') {
     headers['content-type'] = 'application/xml'
   }
+
+  // The request MUST include at least one Link Header [RFC5988] with rel=hub pointing to a Hub associated with the topic being updated.
+  // It MUST also include one Link Header [RFC5988] with rel=self set to the canonical URL of the topic being updated.
+  headers.link = `<${this._getHubUrl()}>; rel="hub"; <${sub.topic}>; rel="self"`
 
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
   // https://w3c.github.io/websub/#signing-content
@@ -472,18 +488,16 @@ WebSubHub.prototype._createSubscription = async function(subscription) {
 }
 
 WebSubHub.prototype._registerHttpHandler = function() {
-  this.server.post(
-    this.options.basePath + '/',
-    { schema: Schemas.subscriptionRequest },
-    (req, resp) => this._handleSubscriptionRequest(req, resp)
+  this.server.post('/', { schema: Schemas.subscriptionRequest }, (req, resp) =>
+    this._handleSubscriptionRequest(req, resp)
   )
   this.server.post(
-    this.options.basePath + '/publish',
+    '/publish',
     { schema: Schemas.publishingRequest },
     (req, resp) => this._handlePublishRequest(req, resp)
   )
   this.server.get(
-    this.options.basePath + '/subscriptions',
+    '/subscriptions',
     { schema: Schemas.subscriptionListRequest },
     (req, resp) => this._handleSubscriptionListRequest(req, resp)
   )
