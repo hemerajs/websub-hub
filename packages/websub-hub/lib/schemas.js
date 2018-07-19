@@ -29,3 +29,13 @@ module.exports.publishingRequest = {
     required: ['hub.mode', 'hub.url']
   }
 }
+
+module.exports.subscriptionListRequest = {
+  querystring: {
+    type: 'object',
+    properties: {
+      start: { type: 'integer', default: 0 },
+      limit: { type: 'integer', default: 5 }
+    }
+  }
+}

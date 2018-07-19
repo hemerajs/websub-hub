@@ -34,9 +34,9 @@ A WebSub Hub implementation in <a href="http://nodejs.org/">Node.js</a>
 - [x] Subscription validation
 - [x] Leasable subscriptions (TTL)
 - [x] Signature validation
-- [ ] Content Distribution over HTTP
+- [x] Content Distribution over HTTP
 - [ ] Auditing
-- [ ] Optimiz content distribution (delta updates)
+- [ ] Optimize content distribution (delta updates)
 - [ ] Websocket support
 - [ ] Benchmarks
 

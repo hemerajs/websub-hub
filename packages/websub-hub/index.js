@@ -23,13 +23,17 @@ module.exports = build
 
 const defaultLeaseInSeconds = 864000 // 10 days
 const verifiedState = {
-  ACCEPTED: 'accepted',
-  DECLINED: 'declined',
-  UNKNOWN: 'unknown'
+  ACCEPTED: 'ACCEPTED',
+  DECLINED: 'DECLINED',
+  HTTP_ERROR: 'HTTP_ERROR'
 }
 const requestMode = {
   SUBSCRIBE: 'subscribe',
   UNSUBSRIBE: 'unsubscribe'
+}
+const collections = {
+  subscription: 'subscription',
+  audit: 'audit'
 }
 
 const defaultOptions = {
@@ -40,7 +44,6 @@ const defaultOptions = {
   logLevel: 'info',
   prettyLog: false,
   logger: null,
-  collection: 'subscriptions',
   basePath: '',
   fastify: {
     logger: {
@@ -75,13 +78,15 @@ function WebSubHub(options) {
       throw err
     }
     const { db } = this.server.mongo
-    this.subscriptionCollection = db.collection(this.options.collection)
+    this.subscriptionCollection = db.collection(collections.subscription)
+    this.auditCollection = db.collection(collections.audit)
+
     return this._setupDbIndizes()
   })
 
   this.httpClient = Got
   this.hyperid = Hyperid()
-  this._registerHandlers()
+  this._registerHttpHandler()
 
   this._configureLogger()
 }
@@ -142,10 +147,11 @@ WebSubHub.prototype._verifyIntent = async function(
   } catch (err) {
     this.log.error(
       err,
-      `could not request subscription callback '%s'`,
-      callbackUrl
+      `could not request subscription callback '%s', statusCode: %d`,
+      callbackUrl,
+      err.statusCode
     )
-    return verifiedState.UNKNOWN
+    return verifiedState.HTTP_ERROR
   }
 
   if (
@@ -171,7 +177,7 @@ WebSubHub.prototype._distributeContentHttp = async function(sub, content) {
   if (sub.format === 'json') {
     headers['content-type'] = 'application/json'
   } else if (sub.format === 'xml') {
-    headers['content-type'] = 'application/rss+xml'
+    headers['content-type'] = 'application/xml'
   }
 
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
@@ -221,10 +227,7 @@ WebSubHub.prototype._sendContentHttp = async function(sub, source, headers) {
 WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
   const topicUrl = req.body['hub.url']
 
-  const { db } = this.server.mongo
-  this.subscriptionsCollection = db.collection('subscriptions')
-
-  const subscriptions = await this.subscriptionsCollection
+  const subscriptions = await this.subscriptionCollection
     .find({
       topic: topicUrl
     })
@@ -256,7 +259,7 @@ WebSubHub.prototype._fetchTopicContent = async function(sub) {
   if (sub.format === 'json') {
     headers.accept = 'application/json'
   } else if (sub.format === 'xml') {
-    headers.accept = 'application/rss+xml'
+    headers.accept = 'application/xml'
   }
 
   let stream = null
@@ -346,23 +349,6 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
 
 /**
  *
- * @param {*} req
- * @param {*} reply
- */
-WebSubHub.prototype._getAllActiveSubscription = function(req, reply) {
-  try {
-    const cursor = this.subscriptionCollection.find({})
-    cursor.project({
-      secret: 0
-    })
-    return cursor.toArray()
-  } catch (err) {
-    throw Boom.wrap(err, 500, 'subscription could get all active subscriptions')
-  }
-}
-
-/**
- *
  *
  * @param {any} req
  * @param {any} reply
@@ -371,8 +357,21 @@ WebSubHub.prototype._handleSubscriptionListRequest = async function(
   req,
   reply
 ) {
-  const list = await this._getAllActiveSubscription()
-  reply.code(200).send(list)
+  try {
+    const cursor = this.subscriptionCollection.find({
+      leaseEndAt: { $gte: new Date() }
+    })
+    cursor.project({
+      secret: 0
+    })
+    const list = await cursor
+      .skip(req.query.start)
+      .limit(req.query.limit)
+      .toArray()
+    reply.code(200).send(list)
+  } catch (err) {
+    reply.send(Boom.wrap(err, 500, 'subscription could get subscriptions'))
+  }
 }
 
 /**
@@ -425,10 +424,11 @@ WebSubHub.prototype._createSubscription = async function(subscription) {
     try {
       // create new subscription
       await this.subscriptionCollection.insertOne({
+        mode: subscription.mode,
         callbackUrl: subscription.callbackUrl,
         callbackQuery: subscription.callbackQuery,
-        mode: subscription.mode,
         topic: subscription.topic,
+        topicQuery: subscription.topicQuery,
         leaseSeconds: subscription.leaseSeconds,
         leaseEndAt: new Date(Date.now() + subscription.leaseSeconds * 1000),
         secret: subscription.secret,
@@ -463,7 +463,7 @@ WebSubHub.prototype._createSubscription = async function(subscription) {
   }
 }
 
-WebSubHub.prototype._registerHandlers = function() {
+WebSubHub.prototype._registerHttpHandler = function() {
   this.server.post(
     this.options.basePath + '/',
     { schema: Schemas.subscriptionRequest },
@@ -474,8 +474,10 @@ WebSubHub.prototype._registerHandlers = function() {
     { schema: Schemas.publishingRequest },
     (req, resp) => this._handlePublishRequest(req, resp)
   )
-  this.server.get(this.options.basePath + '/subscriptions', (req, resp) =>
-    this._handleSubscriptionListRequest(req, resp)
+  this.server.get(
+    this.options.basePath + '/subscriptions',
+    { schema: Schemas.subscriptionListRequest },
+    (req, resp) => this._handleSubscriptionListRequest(req, resp)
   )
 }
 
