@@ -79,6 +79,7 @@ describe('Content Stream', function() {
       )
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -94,6 +95,7 @@ describe('Content Stream', function() {
       })
 
     response = await Got.post(`http://localhost:${PORT}/publish`, {
+      form: true,
       body: {
         'hub.mode': 'publish',
         'hub.url': topic + '/feeds'
@@ -147,6 +149,7 @@ describe('Content Stream', function() {
       )
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -161,6 +164,7 @@ describe('Content Stream', function() {
       })
 
     response = await Got.post(`http://localhost:${PORT}/publish`, {
+      form: true,
       body: {
         'hub.mode': 'publish',
         'hub.url': topic + '/feeds/xml'

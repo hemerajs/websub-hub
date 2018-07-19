@@ -81,6 +81,7 @@ describe('Basic Subscription', function() {
       })
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -113,6 +114,7 @@ describe('Basic Subscription', function() {
       })
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -142,12 +144,14 @@ describe('Basic Subscription', function() {
       })
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
     expect(response.statusCode).to.be.equals(200)
 
     response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 

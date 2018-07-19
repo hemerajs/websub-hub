@@ -87,6 +87,7 @@ describe('TTL subscriptions', function() {
       })
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 

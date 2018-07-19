@@ -81,6 +81,7 @@ describe('Basic Publishing', function() {
       .reply(404)
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -88,6 +89,7 @@ describe('Basic Publishing', function() {
 
     try {
       response = await Got.post(`http://localhost:${PORT}/publish`, {
+        form: true,
         body: {
           'hub.mode': 'publish',
           'hub.url': topic + '/feeds'
@@ -145,6 +147,7 @@ describe('Basic Publishing', function() {
       .reply(200, blogFeeds)
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -160,6 +163,7 @@ describe('Basic Publishing', function() {
       })
 
     response = await Got.post(`http://localhost:${PORT}/publish`, {
+      form: true,
       body: {
         'hub.mode': 'publish',
         'hub.url': topic + '/feeds'

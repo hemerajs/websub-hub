@@ -55,12 +55,14 @@ describe('Basic Unsubscription', function() {
       })
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
     expect(response.statusCode).to.be.equals(200)
 
     response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: {
         'hub.callback': callbackUrl,
         'hub.mode': 'unsubscribe',
@@ -89,6 +91,7 @@ describe('Basic Unsubscription', function() {
       })
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -105,6 +108,7 @@ describe('Basic Unsubscription', function() {
 
     try {
       response = await Got.post(`http://localhost:${PORT}/`, {
+        form: true,
         body: {
           'hub.callback': callbackUrl,
           'hub.mode': 'unsubscribe',
@@ -134,6 +138,7 @@ describe('Basic Unsubscription', function() {
       })
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -150,6 +155,7 @@ describe('Basic Unsubscription', function() {
 
     try {
       response = await Got.post(`http://localhost:${PORT}/`, {
+        form: true,
         body: {
           'hub.callback': callbackUrl,
           'hub.mode': 'unsubscribe',

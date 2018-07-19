@@ -86,6 +86,7 @@ describe('Authenticated Content Distribution', function() {
       .reply(200, blogFeeds)
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -106,6 +107,7 @@ describe('Authenticated Content Distribution', function() {
       })
 
     response = await Got.post(`http://localhost:${PORT}/publish`, {
+      form: true,
       body: {
         'hub.mode': 'publish',
         'hub.url': topic + '/feeds'
@@ -166,6 +168,7 @@ describe('Authenticated Content Distribution', function() {
       .reply(200, blogFeeds)
 
     let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
       body: createSubscriptionBody
     })
 
@@ -190,6 +193,7 @@ describe('Authenticated Content Distribution', function() {
 
     try {
       response = await Got.post(`http://localhost:${PORT}/publish`, {
+        form: true,
         body: {
           'hub.mode': 'publish',
           'hub.url': topic + '/feeds'

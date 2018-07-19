@@ -15,7 +15,7 @@ function Subscriber(options) {
 
 Subscriber.prototype.subscribe = function(topic, callbackUrl) {
   return this.httpClient.post(this.options.hubUrl, {
-    json: true,
+    form: true,
     body: {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
@@ -26,7 +26,7 @@ Subscriber.prototype.subscribe = function(topic, callbackUrl) {
 
 Subscriber.prototype.unsubscribe = function(topic, callbackUrl) {
   return this.httpClient.post(this.options.hubUrl, {
-    json: true,
+    form: true,
     body: {
       'hub.callback': callbackUrl,
       'hub.mode': 'unsubscribe',
@@ -37,7 +37,6 @@ Subscriber.prototype.unsubscribe = function(topic, callbackUrl) {
 
 Subscriber.prototype.list = function(start, limit) {
   return this.httpClient.get(this.options.hubUrl + '/subscriptions', {
-    json: true,
     query: { start, limit }
   })
 }
