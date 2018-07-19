@@ -3,7 +3,7 @@
 const Code = require('code')
 const expect = Code.expect
 const Got = require('got')
-const Hub = require('./../packages/websub-hub').server
+const Hub = require('./../packages/websub-hub')
 const MongoInMemory = require('mongo-in-memory')
 const Sinon = require('sinon')
 const Nock = require('nock')
@@ -15,29 +15,25 @@ describe('Basic Unsubscription', function() {
   let mongoInMemory
   let topic = 'http://testblog.de'
 
-  before(function(done) {
+  before(done => {
     mongoInMemory = new MongoInMemory()
-    mongoInMemory.start(() => {
-      hub = new Hub({
-        timeout: 500,
-        logLevel: 'debug',
-        mongo: {
-          url: mongoInMemory.getMongouri('hub')
-        }
-      })
-      hub.listen().then(() => {
-        mongoInMemory.start(() => {
-          done()
-        })
-      })
+    mongoInMemory.start(() => done())
+  })
+
+  before(function() {
+    hub = Hub({
+      timeout: 500,
+      logLevel: 'debug',
+      mongo: {
+        url: mongoInMemory.getMongouri('hub')
+      }
     })
+    return hub.listen()
   })
 
   after(function(done) {
     hub.close().then(() => {
-      mongoInMemory.stop(() => {
-        done()
-      })
+      mongoInMemory.stop(() => done())
     })
   })
 

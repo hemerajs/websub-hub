@@ -3,7 +3,7 @@
 const Code = require('code')
 const expect = Code.expect
 const Got = require('got')
-const Hub = require('./../packages/websub-hub').server
+const Hub = require('./../packages/websub-hub')
 const MongoInMemory = require('mongo-in-memory')
 const Sinon = require('sinon')
 const Nock = require('nock')
@@ -23,11 +23,12 @@ describe('TTL subscriptions', function() {
 
   before(done => {
     mongoInMemory = new MongoInMemory()
-    mongoInMemory.start(done)
+    mongoInMemory.start(() => done())
   })
 
   before(function() {
-    hub = new Hub({
+    hub = Hub({
+      timeout: 500,
       logLevel: 'debug',
       mongo: {
         url: mongoInMemory.getMongouri('hub')
@@ -59,12 +60,9 @@ describe('TTL subscriptions', function() {
     )
   })
 
-  // Shutdown our server after we are done
   after(function(done) {
     hub.close().then(() => {
-      mongoInMemory.stop(() => {
-        done()
-      })
+      mongoInMemory.stop(() => done())
     })
   })
 

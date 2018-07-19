@@ -1,6 +1,6 @@
 'use strict'
 
-const Schemas = require('./schemas')
+const Schemas = require('./lib/schemas')
 const Fastify = require('fastify')
 const FormBody = require('fastify-formbody')
 const FastifyBoom = require('fastify-boom')
@@ -10,16 +10,16 @@ const Hyperid = require('hyperid')
 const Boom = require('boom')
 const Hoek = require('hoek')
 const Pino = require('pino')
-const Serializer = require('./serializer')
-const safeEqual = require('./safeEqual')
+const Serializer = require('./lib/serializer')
+const safeEqual = require('./lib/safeEqual')
 const Crypto = require('crypto')
 const PEvent = require('p-event')
 const MimeTypes = require('mime-types')
 const PMap = require('p-map')
 const Stream = require('stream')
-const Url = require('url')
+const Utils = require('./lib/utils')
 
-module.exports = Server
+module.exports = build
 
 const defaultLeaseInSeconds = 864000 // 10 days
 const verifiedState = {
@@ -35,22 +35,28 @@ const requestMode = {
 const defaultOptions = {
   name: 'hub',
   port: 3000,
-  address: '127.0.0.1',
-  timeout: 3000,
+  address: 'localhost',
+  timeout: 2000,
   logLevel: 'info',
-  hubUrl: 'http://127.0.0.1:3000',
+  prettyLog: false,
+  logger: null,
   collection: 'subscriptions',
+  basePath: '',
   fastify: {
     logger: {
-      level: 'info'
+      level: 'error'
     }
   },
   mongo: {
     url: '',
     useNewUrlParser: true
   },
-  retries: 3,
-  basePath: ''
+  retries: 2
+}
+
+function build(options) {
+  options = Hoek.applyToDefaults(defaultOptions, options || {})
+  return new WebSubHub(options)
 }
 
 /**
@@ -59,9 +65,8 @@ const defaultOptions = {
  * @param {any} options
  * @returns
  */
-function Server(options) {
-  this.options = Hoek.applyToDefaults(defaultOptions, options || {})
-
+function WebSubHub(options) {
+  this.options = options
   this.server = Fastify(this.options)
   this.server.register(FastifyBoom)
   this.server.register(FormBody)
@@ -78,25 +83,31 @@ function Server(options) {
   this.hyperid = Hyperid()
   this._registerHandlers()
 
-  const pretty = Pino.pretty()
-  pretty.pipe(process.stdout)
+  this._configureLogger()
+}
 
-  this.log = Pino(
-    {
-      name: this.options.name,
-      safe: true, // avoid error caused by circular references
-      serializers: Serializer,
-      level: this.options.logLevel
-    },
-    pretty
-  )
-
-  if (!(this instanceof Server)) {
-    return new Server(options)
+WebSubHub.prototype._configureLogger = function() {
+  const loggerOpts = {
+    name: this.options.name,
+    serializer: Serializer,
+    safe: true, // handle circular refs
+    level: this.options.logLevel
+  }
+  if (this.options.logger instanceof Stream.Stream) {
+    this.log = Pino(loggerOpts, this.options.logger)
+  } else if (this.options.logger) {
+    this.log = this.options.logger
+  } else {
+    const pretty = this.options.prettyLog ? Pino.pretty() : undefined
+    this.log = Pino(loggerOpts, pretty)
+    // Leads to too much listeners in tests
+    if (pretty && this.options.logLevel !== 'silent') {
+      pretty.pipe(process.stdout)
+    }
   }
 }
 
-Server.prototype._setupDbIndizes = async function() {
+WebSubHub.prototype._setupDbIndizes = async function() {
   return this.subscriptionCollection.createIndex(
     { leaseEndAt: 1 },
     { expireAfterSeconds: 0 }
@@ -111,7 +122,7 @@ Server.prototype._setupDbIndizes = async function() {
  * @param {*} param0
  * @param {*} challenge
  */
-Server.prototype._verifyIntent = async function(
+WebSubHub.prototype._verifyIntent = async function(
   { callbackUrl, mode, topic, callbackQuery },
   challenge
 ) {
@@ -128,7 +139,12 @@ Server.prototype._verifyIntent = async function(
         'hub.challenge': challenge
       }
     })
-  } catch (_) {
+  } catch (err) {
+    this.log.error(
+      err,
+      `could not request subscription callback '%s'`,
+      callbackUrl
+    )
     return verifiedState.UNKNOWN
   }
 
@@ -149,7 +165,7 @@ Server.prototype._verifyIntent = async function(
  * @param {*} sub
  * @param {*} content
  */
-Server.prototype._distributeContentHttp = async function(sub, content) {
+WebSubHub.prototype._distributeContentHttp = async function(sub, content) {
   const headers = {}
 
   if (sub.format === 'json') {
@@ -174,7 +190,7 @@ Server.prototype._distributeContentHttp = async function(sub, content) {
   return this._sendContentHttp(sub, content.stream, headers)
 }
 
-Server.prototype._sendContentHttp = async function(sub, source, headers) {
+WebSubHub.prototype._sendContentHttp = async function(sub, source, headers) {
   const stream = source.pipe(
     this.httpClient.stream.post(sub.callbackUrl, {
       query: sub.callbackQuery,
@@ -189,11 +205,11 @@ Server.prototype._sendContentHttp = async function(sub, source, headers) {
   } catch (err) {
     this.log.error(
       err,
-      `Content could not be published to '%s'`,
+      `content could not be published to '%s'`,
       sub.callbackUrl
     )
 
-    throw Boom.badRequest('Content could not be published')
+    throw Boom.badRequest('content could not be published')
   }
 }
 
@@ -202,7 +218,7 @@ Server.prototype._sendContentHttp = async function(sub, source, headers) {
  * @param {*} req
  * @param {*} reply
  */
-Server.prototype._handlePublishRequest = async function(req, reply) {
+WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
   const topicUrl = req.body['hub.url']
 
   const { db } = this.server.mongo
@@ -222,7 +238,7 @@ Server.prototype._handlePublishRequest = async function(req, reply) {
   try {
     await PMap(subscriptions, mapper, { concurrency: 4 })
   } catch (err) {
-    this.log.error(err, 'Could not fetch and distribute content')
+    this.log.error(err, 'could not fetch and distribute content')
     reply.send(err)
     return
   }
@@ -234,7 +250,7 @@ Server.prototype._handlePublishRequest = async function(req, reply) {
  *
  * @param {*} sub
  */
-Server.prototype._fetchTopicContent = async function(sub) {
+WebSubHub.prototype._fetchTopicContent = async function(sub) {
   const headers = {}
 
   if (sub.format === 'json') {
@@ -253,8 +269,8 @@ Server.prototype._fetchTopicContent = async function(sub) {
       timeout: this.options.timeout
     })
   } catch (err) {
-    this.log.error(err, `From topic '%s' could not be fetched`, sub.topic)
-    throw Boom.notFound('From topic could not be fetched')
+    this.log.error(err, `from topic '%s' could not be fetched`, sub.topic)
+    throw Boom.notFound('from topic could not be fetched')
   }
 
   let contentType = sub.format
@@ -273,35 +289,22 @@ Server.prototype._fetchTopicContent = async function(sub) {
 
 /**
  *
- * @param {*} stream
- * @param {*} contentType
- */
-Server.prototype._getUpdatedDate = async function(stream, contentType) {
-  if (contentType === 'json') {
-    return this._parseJSONUpdateDate(stream)
-  } else if (contentType === 'xml' || contentType === 'rss') {
-    return this._parseXMLUpdateDate(stream)
-  }
-}
-
-/**
- *
  *
  * @param {any} req
  * @param {any} reply
  */
-Server.prototype._handleSubscriptionRequest = async function(req, reply) {
+WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
   const mode = req.body['hub.mode']
   const leaseSeconds = req.body['hub.lease_seconds'] || defaultLeaseInSeconds
   const secret = req.body['hub.secret']
   const format = req.body['hub.format']
   const challenge = this.hyperid()
 
-  const normalizedTopicUrl = normalizeUrl(req.body['hub.topic'])
+  const normalizedTopicUrl = Utils.normalizeUrl(req.body['hub.topic'])
   const topicQuery = normalizedTopicUrl.query
   const topicUrl = normalizedTopicUrl.url
 
-  const normalizedCallbackUrl = normalizeUrl(req.body['hub.callback'])
+  const normalizedCallbackUrl = Utils.normalizeUrl(req.body['hub.callback'])
   const callbackQuery = normalizedCallbackUrl.query
   const callbackUrl = normalizedCallbackUrl.url
   const protocol = normalizedCallbackUrl.protocol
@@ -321,10 +324,10 @@ Server.prototype._handleSubscriptionRequest = async function(req, reply) {
   const intentResult = await this._verifyIntent(sub, challenge)
 
   if (intentResult === verifiedState.DECLINED) {
-    reply.send(Boom.forbidden('Subscriber has declined'))
+    reply.send(Boom.forbidden('subscriber has declined'))
     return
   } else if (intentResult === verifiedState.UNKNOWN) {
-    reply.send(Boom.forbidden('Subscriber could not be verified'))
+    reply.send(Boom.forbidden('subscriber could not be verified'))
     return
   }
 
@@ -346,7 +349,7 @@ Server.prototype._handleSubscriptionRequest = async function(req, reply) {
  * @param {*} req
  * @param {*} reply
  */
-Server.prototype._getAllActiveSubscription = function(req, reply) {
+WebSubHub.prototype._getAllActiveSubscription = function(req, reply) {
   try {
     const cursor = this.subscriptionCollection.find({})
     cursor.project({
@@ -354,7 +357,7 @@ Server.prototype._getAllActiveSubscription = function(req, reply) {
     })
     return cursor.toArray()
   } catch (err) {
-    throw Boom.wrap(err, 500, 'Subscription could get all active subscriptions')
+    throw Boom.wrap(err, 500, 'subscription could get all active subscriptions')
   }
 }
 
@@ -364,7 +367,10 @@ Server.prototype._getAllActiveSubscription = function(req, reply) {
  * @param {any} req
  * @param {any} reply
  */
-Server.prototype._handleSubscriptionListRequest = async function(req, reply) {
+WebSubHub.prototype._handleSubscriptionListRequest = async function(
+  req,
+  reply
+) {
   const list = await this._getAllActiveSubscription()
   reply.code(200).send(list)
 }
@@ -376,7 +382,7 @@ Server.prototype._handleSubscriptionListRequest = async function(req, reply) {
  * @param {any} callbackUrl
  * @returns
  */
-Server.prototype._unsubscribe = function(sub) {
+WebSubHub.prototype._unsubscribe = function(sub) {
   return this.subscriptionCollection.findOneAndDelete({
     topic: sub.topic,
     callbackUrl: sub.callbackUrl,
@@ -391,7 +397,7 @@ Server.prototype._unsubscribe = function(sub) {
  * @param {any} callbackUrl
  * @returns
  */
-Server.prototype._isDuplicateSubscription = async function(sub) {
+WebSubHub.prototype._isDuplicateSubscription = async function(sub) {
   const entry = await this.subscriptionCollection.findOne({
     topic: sub.topic,
     callbackUrl: sub.callbackUrl,
@@ -412,7 +418,7 @@ Server.prototype._isDuplicateSubscription = async function(sub) {
  * @param {any} cb
  * @returns
  */
-Server.prototype._createSubscription = async function(subscription) {
+WebSubHub.prototype._createSubscription = async function(subscription) {
   const isDuplicate = await this._isDuplicateSubscription(subscription)
 
   if (isDuplicate === false) {
@@ -431,7 +437,7 @@ Server.prototype._createSubscription = async function(subscription) {
         createdAt: new Date()
       })
     } catch (err) {
-      throw Boom.wrap(err, 500, 'Subscription could not be created')
+      throw Boom.wrap(err, 500, 'subscription could not be created')
     }
   } else {
     try {
@@ -457,7 +463,7 @@ Server.prototype._createSubscription = async function(subscription) {
   }
 }
 
-Server.prototype._registerHandlers = function() {
+WebSubHub.prototype._registerHandlers = function() {
   this.server.post(
     this.options.basePath + '/',
     { schema: Schemas.subscriptionRequest },
@@ -473,28 +479,10 @@ Server.prototype._registerHandlers = function() {
   )
 }
 
-Server.prototype.listen = function() {
+WebSubHub.prototype.listen = function() {
   return this.server.listen(this.options.port, this.options.address)
 }
 
-Server.prototype.close = function() {
+WebSubHub.prototype.close = function() {
   return this.server.close()
-}
-
-function normalizeUrl(url) {
-  const parsedUrl = Url.parse(url, true)
-
-  const query = parsedUrl.query
-  // remove query to get a normalized url without query params
-  parsedUrl.search = ''
-  parsedUrl.query = {}
-
-  return {
-    url: Url.format(parsedUrl, {
-      search: false,
-      fragment: false
-    }),
-    protocol: parsedUrl.protocol,
-    query
-  }
 }

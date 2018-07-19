@@ -66,7 +66,7 @@ $ node examples\callback.js
 This will create a new subscription. The subscriber has to verify that action.
 
 ```js
-const Subscriber = require('websub-hub').subscriber
+const Subscriber = require('websub-hub/subscriber')
 const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
 s.subscribe({
   topic: 'http://127.0.0.1:6000',
@@ -79,7 +79,7 @@ s.subscribe({
 This will unsusbcribe a subscription. This action mustn't be verified.
 
 ```js
-const Subscriber = require('websub-hub').subscriber
+const Subscriber = require('websub-hub/subscriber')
 const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
 s.unsubscribe({
   topic: 'http://127.0.0.1:6000',
@@ -92,7 +92,7 @@ s.unsubscribe({
 This will notify all subscribers about updates.
 
 ```js
-const Publisher = require('websub-hub').publisher
+const Publisher = require('websub-hub/publisher')
 const p = new Publisher({ hubUrl: 'http://127.0.0.1:3000' })
 p.publish('http://127.0.0.1:6000').then(response => {})
 ```

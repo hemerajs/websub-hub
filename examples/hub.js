@@ -1,8 +1,8 @@
 'use strict'
 
-const WebSubHub = require('../packages/websub-hub').server
+const Hub = require('../packages/websub-hub')
 
-const hub = new WebSubHub({
+const hub = Hub({
   port: 3000,
   logLevel: 'info',
   mongo: {
@@ -13,7 +13,7 @@ const hub = new WebSubHub({
 hub
   .listen()
   .then(() => {
-    console.log(
+    hub.log.info(
       'Hub listening on: ' +
         'http://localhost:' +
         hub.server.server.address().port

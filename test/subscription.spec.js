@@ -3,7 +3,7 @@
 const Code = require('code')
 const expect = Code.expect
 const Got = require('got')
-const Hub = require('./../packages/websub-hub').server
+const Hub = require('./../packages/websub-hub')
 const MongoInMemory = require('mongo-in-memory')
 const Sinon = require('sinon')
 const Nock = require('nock')
@@ -15,29 +15,24 @@ describe('Basic Subscription', function() {
   let mongoInMemory
   let topic = 'http://testblog.de'
 
-  before(function(done) {
+  before(done => {
     mongoInMemory = new MongoInMemory()
-    mongoInMemory.start(() => {
-      hub = new Hub({
-        timeout: 500,
-        logLevel: 'debug',
-        mongo: {
-          url: mongoInMemory.getMongouri('hub')
-        }
-      })
-      hub.listen().then(() => {
-        mongoInMemory.start(() => {
-          done()
-        })
-      })
+    mongoInMemory.start(() => done())
+  })
+
+  before(function() {
+    hub = Hub({
+      logLevel: 'debug',
+      mongo: {
+        url: mongoInMemory.getMongouri('hub')
+      }
     })
+    return hub.listen()
   })
 
   after(function(done) {
     hub.close().then(() => {
-      mongoInMemory.stop(() => {
-        done()
-      })
+      mongoInMemory.stop(() => done())
     })
   })
 
@@ -91,6 +86,39 @@ describe('Basic Subscription', function() {
 
     expect(response.statusCode).to.be.equals(200)
     verifyIntentMock.done()
+  })
+
+  it.skip('Should retry when subscription callback respond with e.g statusCode 502', async function() {
+    const callbackUrl = 'http://127.0.0.1:3001'
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }
+
+    const verifyIntentBadGatewayMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .replyWithError({ code: 'ETIMEDOUT' })
+
+    const verifyIntentSuccessMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
+
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      body: createSubscriptionBody
+    })
+
+    expect(response.statusCode).to.be.equals(200)
+    verifyIntentBadGatewayMock.done()
+    verifyIntentSuccessMock.done()
   })
 
   it('Should be able to subscribe multiple times with the same subscriber', async function() {

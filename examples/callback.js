@@ -1,4 +1,8 @@
-const fastify = require('fastify')()
+const fastify = require('fastify')({
+  logger: {
+    level: 'info'
+  }
+})
 
 fastify.get('/', function(req, res) {
   console.log('subscription verified', req.body)
@@ -12,9 +16,4 @@ fastify.post('/', function(req, res) {
 
 fastify.listen(5000, err => {
   if (err) throw err
-  console.log(
-    'Subscriber callback listening on: ' +
-      'http://localhost:' +
-      fastify.server.address().port
-  )
 })

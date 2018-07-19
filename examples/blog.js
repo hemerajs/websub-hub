@@ -1,4 +1,8 @@
-const fastify = require('fastify')()
+const fastify = require('fastify')({
+  logger: {
+    level: 'info'
+  }
+})
 
 fastify.get('/feeds', function(req, res) {
   console.log('Content provided')
@@ -26,9 +30,4 @@ fastify.get('/feeds', function(req, res) {
 
 fastify.listen(6000, err => {
   if (err) throw err
-  console.log(
-    'Feed provider listening on: ' +
-      'http://localhost:' +
-      fastify.server.address().port
-  )
 })
