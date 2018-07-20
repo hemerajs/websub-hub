@@ -11,7 +11,8 @@
     "setup": "npm i && npm run bootstrap",
     "publish": "lerna publish",
     "lint": "eslint ./**/*.js",
-    "coverage": "npm run test && nyc report --reporter=html"
+    "coverage": "npm run test && nyc report --reporter=html",
+    "coveralls": "nyc report --reporter=text-lcov | coveralls"
   },
   "devDependencies": {
     "code": "^5.2.0",
