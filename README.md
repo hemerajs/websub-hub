@@ -59,45 +59,7 @@ $ websub-hub -l info -m mongodb://localhost:27017/hub
 
 ```
 $ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
-$ node examples\hub.js
-$ node examples\blog.js
-$ node examples\callback.js
-```
-
-## Subscribe
-
-This will create a new subscription. The subscriber has to verify that action.
-
-```js
-const Subscriber = require('websub-hub/subscriber')
-const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
-s.subscribe({
-  topic: 'http://127.0.0.1:6000',
-  callbackUrl: 'http://127.0.0.1:5000'
-}).then(response => {})
-```
-
-## Unsubscribe
-
-This will unsusbcribe a subscription. This action mustn't be verified.
-
-```js
-const Subscriber = require('websub-hub/subscriber')
-const s = new Subscriber({ hubUrl: 'http://127.0.0.1:3000' })
-s.unsubscribe({
-  topic: 'http://127.0.0.1:6000',
-  callbackUrl: 'http://127.0.0.1:5000'
-}).then(response => {})
-```
-
-## Publish
-
-This will notify all subscribers about updates.
-
-```js
-const Publisher = require('websub-hub/publisher')
-const p = new Publisher({ hubUrl: 'http://127.0.0.1:3000' })
-p.publish('http://127.0.0.1:6000').then(response => {})
+$ node examples\full-example.js
 ```
 
 ## Test

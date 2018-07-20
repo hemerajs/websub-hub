@@ -187,6 +187,62 @@ describe('Basic Content Distribution / Publishing', function() {
     verifyPublishedContentMock.done()
   })
 
+  it('Should receive the correct query paramaters when the hub initiated a verification request', async function() {
+    const callbackUrl = 'http://127.0.0.1:3002'
+    const blogFeeds = {
+      version: 'https://jsonfeed.org/version/1',
+      title: 'My Example Feed',
+      updated: '2003-12-13T18:30:02Z',
+      home_page_url: 'https://example.org/',
+      feed_url: 'https://example.org/feed.json',
+      items: [
+        {
+          id: '2',
+          content_text: 'This is a second item.',
+          url: 'https://example.org/second-item'
+        },
+        {
+          id: '1',
+          content_html: '<p>Hello, world!</p>',
+          url: 'https://example.org/initial-post'
+        }
+      ]
+    }
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds'
+    }
+
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(function(uri) {
+        const query = parse(uri, true).query
+        expect(query['hub.challenge']).to.be.exists()
+        expect(query['hub.topic']).to.be.equal(
+          createSubscriptionBody['hub.topic']
+        )
+        expect(query['hub.mode']).to.be.equal(
+          createSubscriptionBody['hub.mode']
+        )
+        expect(query['hub.lease_seconds']).to.be.equal('864000') // 10 days
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
+
+    let response = await Got.post(`http://localhost:${PORT}/`, {
+      form: true,
+      body: createSubscriptionBody
+    })
+
+    expect(response.statusCode).to.be.equals(200)
+
+    verifyIntentMock.done()
+  })
+
   it('Should request callbackUrl with query parameters', async function() {
     const callbackUrl = 'http://127.0.0.1:3002?foo=bar'
     const blogFeeds = {
