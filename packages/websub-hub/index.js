@@ -45,11 +45,7 @@ const defaultOptions = {
   logLevel: 'info',
   prettyLog: false,
   logger: null,
-  fastify: {
-    logger: {
-      level: 'error'
-    }
-  },
+  https: null,
   mongo: {
     url: '',
     useNewUrlParser: true
@@ -102,7 +98,7 @@ WebSubHub.prototype._getHubUrl = function() {
   }
 
   return (
-    'http://' +
+    (this.options.https ? ':' + 'https://' : 'http://') +
     this.options.address +
     (this.options.port ? ':' + this.options.port : '')
   )
@@ -145,7 +141,7 @@ WebSubHub.prototype._setupDbIndizes = async function() {
  * @param {*} challenge
  */
 WebSubHub.prototype._verifyIntent = async function(
-  { callbackUrl, mode, topic, callbackQuery },
+  { callbackUrl, mode, topic, callbackQuery, leaseSeconds },
   challenge
 ) {
   let response
@@ -158,7 +154,8 @@ WebSubHub.prototype._verifyIntent = async function(
         ...callbackQuery,
         'hub.topic': topic,
         'hub.mode': mode,
-        'hub.challenge': challenge
+        'hub.challenge': challenge,
+        'hub.lease_seconds': leaseSeconds
       }
     })
   } catch (err) {
@@ -199,7 +196,7 @@ WebSubHub.prototype._distributeContentHttp = async function(sub, content) {
 
   // The request MUST include at least one Link Header [RFC5988] with rel=hub pointing to a Hub associated with the topic being updated.
   // It MUST also include one Link Header [RFC5988] with rel=self set to the canonical URL of the topic being updated.
-  headers.link = `<${this._getHubUrl()}>; rel="hub"; <${sub.topic}>; rel="self"`
+  headers.link = `<${this._getHubUrl()}>; rel="hub", <${sub.topic}>; rel="self"`
 
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
   // https://w3c.github.io/websub/#signing-content
@@ -233,7 +230,7 @@ WebSubHub.prototype._sendContentHttp = async function(sub, source, headers) {
   } catch (err) {
     this.log.error(
       err,
-      `content could not be published to '%s'`,
+      `content could not be published over HTTP to '%s'`,
       sub.callbackUrl
     )
 
@@ -256,8 +253,17 @@ WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
     .toArray()
 
   const mapper = async sub => {
-    const content = await this._fetchTopicContent(sub)
-    return this._distributeContentHttp(sub, content)
+    // swallow errors in order to handle the distribution process not transactional
+    try {
+      const content = await this._fetchTopicContent(sub)
+      await this._distributeContentHttp(sub, content)
+    } catch (err) {
+      this.log.error(
+        err,
+        `topic content could not be published to subscriber with url '%s'`,
+        sub.callbackUrl
+      )
+    }
   }
 
   try {

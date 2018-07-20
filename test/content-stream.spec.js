@@ -16,7 +16,8 @@ describe('Content Stream', function() {
   const PORT = 3000
   let hub
   let mongoInMemory
-  let topic = 'http://testblog.de'
+  let topic = ''
+  let counter = 0
 
   before(done => {
     mongoInMemory = new MongoInMemory()
@@ -32,6 +33,11 @@ describe('Content Stream', function() {
       }
     })
     return hub.listen()
+  })
+
+  // In order to produce unique subscriptions
+  beforeEach(() => {
+    topic = `http://testblog-n${counter++}.de`
   })
 
   after(function(done) {
@@ -91,7 +97,7 @@ describe('Content Stream', function() {
       .reply(function(uri, requestBody) {
         expect(this.req.headers['x-hub-signature']).to.be.not.exist()
         expect(this.req.headers['link']).to.be.equals(
-          `<http://localhost:3000>; rel="hub"; <${topic +
+          `<http://localhost:3000>; rel="hub", <${topic +
             '/feeds'}>; rel="self"`
         )
         expect(requestBody).to.be.equal(JSON.parse(blogFeeds))
@@ -165,7 +171,7 @@ describe('Content Stream', function() {
       .reply(200, function(uri, requestBody) {
         expect(this.req.headers['x-hub-signature']).to.be.not.exist()
         expect(this.req.headers['link']).to.be.equals(
-          `<http://localhost:3000>; rel="hub"; <${topic +
+          `<http://localhost:3000>; rel="hub", <${topic +
             '/feeds/xml'}>; rel="self"`
         )
         expect(requestBody).to.be.equal(blogFeeds)

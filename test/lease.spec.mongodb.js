@@ -19,7 +19,8 @@ describe('TTL subscriptions', function() {
   const PORT = 3000
   let hub
   let mongoInMemory
-  let topic = 'http://testblog.de'
+  let topic = ''
+  let counter = 0
 
   before(done => {
     mongoInMemory = new MongoInMemory()
@@ -58,6 +59,11 @@ describe('TTL subscriptions', function() {
         )
       }
     )
+  })
+
+  // In order to produce unique subscriptions
+  beforeEach(() => {
+    topic = `http://testblog-n${counter++}.de`
   })
 
   after(function(done) {

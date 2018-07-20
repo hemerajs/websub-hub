@@ -5,17 +5,13 @@ const Url = require('url')
 module.exports.normalizeUrl = function(url) {
   const parsedUrl = Url.parse(url, true)
 
-  const query = parsedUrl.query
-  // remove query to get a normalized url without query params
-  parsedUrl.search = ''
-  parsedUrl.query = {}
+  const urlWithoutQuery = `${parsedUrl.protocol}//${parsedUrl.hostname}${
+    parsedUrl.port ? ':' + parsedUrl.port : ''
+  }${parsedUrl.pathname}`
 
   return {
-    url: Url.format(parsedUrl, {
-      search: false,
-      fragment: false
-    }),
+    url: urlWithoutQuery,
     protocol: parsedUrl.protocol,
-    query
+    query: parsedUrl.query
   }
 }
