@@ -124,7 +124,7 @@ WebSubHub.prototype._configureLogger = function() {
   }
 }
 
-WebSubHub.prototype._setupDbIndizes = async function() {
+WebSubHub.prototype._setupDbIndizes = function() {
   return this.subscriptionCollection.createIndex(
     { leaseEndAt: 1 },
     { expireAfterSeconds: 0 }
@@ -390,8 +390,8 @@ WebSubHub.prototype._isDuplicateSubscription = async function(sub) {
   return false
 }
 
-WebSubHub.prototype._renewSubscription = async function(sub) {
-  await this.subscriptionCollection.findOneAndUpdate(
+WebSubHub.prototype._renewSubscription = function(sub) {
+  return this.subscriptionCollection.findOneAndUpdate(
     {
       callbackUrl: sub.callbackUrl,
       topic: sub.topic,
@@ -407,9 +407,9 @@ WebSubHub.prototype._renewSubscription = async function(sub) {
   )
 }
 
-WebSubHub.prototype._createSubscription = async function(sub) {
+WebSubHub.prototype._createSubscription = function(sub) {
   const currentDate = new Date()
-  await this.subscriptionCollection.insertOne({
+  return this.subscriptionCollection.insertOne({
     mode: sub.mode,
     callbackUrl: sub.callbackUrl,
     callbackQuery: sub.callbackQuery,
