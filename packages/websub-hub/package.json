@@ -36,6 +36,7 @@
     "hyperid": "^1.4.1",
     "jsonwebtoken": "^8.3.0",
     "mime-types": "^2.1.19",
-    "p-event": "^2.1.0"
+    "p-event": "^2.1.0",
+    "p-queue": "^2.4.2"
   }
 }

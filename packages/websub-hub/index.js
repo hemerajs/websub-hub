@@ -16,6 +16,7 @@ const Crypto = require('crypto')
 const PEvent = require('p-event')
 const MimeTypes = require('mime-types')
 const Stream = require('stream')
+const PQueue = require('p-queue')
 const Utils = require('./lib/utils')
 
 module.exports = build
@@ -66,6 +67,7 @@ function build(options) {
 function WebSubHub(options) {
   this.options = options
   this._configureLogger()
+  this._publishingQueue = new PQueue({ concurrency: 4 })
 
   this.server = Fastify({
     https: this.options.https,
@@ -239,8 +241,7 @@ WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
     topic: topicUrl
   })
 
-  while (await cursor.hasNext()) {
-    const sub = await cursor.next()
+  const mapper = async sub => {
     try {
       const content = await this._fetchTopicContent(sub)
       await this._distributeContentHttp(sub, content)
@@ -252,6 +253,13 @@ WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
       )
     }
   }
+
+  while (await cursor.hasNext()) {
+    const sub = await cursor.next()
+    this._publishingQueue.add(() => mapper(sub))
+  }
+
+  await this._publishingQueue.onIdle()
 
   reply.code(200).send()
 }
