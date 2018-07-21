@@ -15,7 +15,6 @@ const safeEqual = require('./lib/safeEqual')
 const Crypto = require('crypto')
 const PEvent = require('p-event')
 const MimeTypes = require('mime-types')
-const PMap = require('p-map')
 const Stream = require('stream')
 const Utils = require('./lib/utils')
 
@@ -180,11 +179,6 @@ WebSubHub.prototype._verifyIntent = async function(
   return verifiedState.DECLINED
 }
 
-/**
- *
- * @param {*} sub
- * @param {*} content
- */
 WebSubHub.prototype._distributeContentHttp = async function(sub, content) {
   const headers = {}
 
@@ -238,22 +232,15 @@ WebSubHub.prototype._sendContentHttp = async function(sub, source, headers) {
   }
 }
 
-/**
- *
- * @param {*} req
- * @param {*} reply
- */
 WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
   const topicUrl = req.body['hub.url']
 
-  const subscriptions = await this.subscriptionCollection
-    .find({
-      topic: topicUrl
-    })
-    .toArray()
+  const cursor = await this.subscriptionCollection.find({
+    topic: topicUrl
+  })
 
-  const mapper = async sub => {
-    // swallow errors in order to handle the distribution process not transactional
+  while (await cursor.hasNext()) {
+    const sub = await cursor.next()
     try {
       const content = await this._fetchTopicContent(sub)
       await this._distributeContentHttp(sub, content)
@@ -266,21 +253,9 @@ WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
     }
   }
 
-  try {
-    await PMap(subscriptions, mapper, { concurrency: 4 })
-  } catch (err) {
-    this.log.error(err, 'could not fetch and distribute content')
-    reply.send(err)
-    return
-  }
-
   reply.code(200).send()
 }
 
-/**
- *
- * @param {*} sub
- */
 WebSubHub.prototype._fetchTopicContent = async function(sub) {
   const headers = {}
 
@@ -318,12 +293,6 @@ WebSubHub.prototype._fetchTopicContent = async function(sub) {
   }
 }
 
-/**
- *
- *
- * @param {any} req
- * @param {any} reply
- */
 WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
   const mode = req.body['hub.mode']
   const leaseSeconds = req.body['hub.lease_seconds'] || defaultLeaseInSeconds
@@ -365,7 +334,7 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
   this.log.info(`'%s' for callback '%s' was verified`, mode, callbackUrl)
 
   if (mode === requestMode.SUBSCRIBE) {
-    await this._createSubscription(sub)
+    await this._subscribe(sub)
     this.log.info(`subscription for callback '%s' was created`, callbackUrl)
   } else if (mode === requestMode.UNSUBSRIBE) {
     await this._unsubscribe(sub)
@@ -377,12 +346,6 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
   reply.code(200).send()
 }
 
-/**
- *
- *
- * @param {any} req
- * @param {any} reply
- */
 WebSubHub.prototype._handleSubscriptionListRequest = async function(
   req,
   reply
@@ -404,13 +367,6 @@ WebSubHub.prototype._handleSubscriptionListRequest = async function(
   }
 }
 
-/**
- *
- *
- * @param {any} topic
- * @param {any} callbackUrl
- * @returns
- */
 WebSubHub.prototype._unsubscribe = function(sub) {
   return this.subscriptionCollection.findOneAndDelete({
     topic: sub.topic,
@@ -419,15 +375,9 @@ WebSubHub.prototype._unsubscribe = function(sub) {
   })
 }
 
-/**
- *
- *
- * @param {any} topic
- * @param {any} callbackUrl
- * @returns
- */
 WebSubHub.prototype._isDuplicateSubscription = async function(sub) {
   const entry = await this.subscriptionCollection.findOne({
+    leaseEndAt: { $gte: new Date() },
     topic: sub.topic,
     callbackUrl: sub.callbackUrl,
     protocol: sub.protocol
@@ -440,55 +390,53 @@ WebSubHub.prototype._isDuplicateSubscription = async function(sub) {
   return false
 }
 
-/**
- *
- *
- * @param {any} subscription
- * @param {any} cb
- * @returns
- */
-WebSubHub.prototype._createSubscription = async function(subscription) {
-  const isDuplicate = await this._isDuplicateSubscription(subscription)
+WebSubHub.prototype._renewSubscription = async function(sub) {
+  await this.subscriptionCollection.findOneAndUpdate(
+    {
+      callbackUrl: sub.callbackUrl,
+      topic: sub.topic,
+      protocol: sub.protocol
+    },
+    {
+      $set: {
+        leaseSeconds: sub.leaseSeconds,
+        updatedAt: new Date(),
+        leaseEndAt: new Date(Date.now() + sub.leaseSeconds * 1000)
+      }
+    }
+  )
+}
+
+WebSubHub.prototype._createSubscription = async function(sub) {
+  const currentDate = new Date()
+  await this.subscriptionCollection.insertOne({
+    mode: sub.mode,
+    callbackUrl: sub.callbackUrl,
+    callbackQuery: sub.callbackQuery,
+    topic: sub.topic,
+    topicQuery: sub.topicQuery,
+    leaseSeconds: sub.leaseSeconds,
+    leaseEndAt: new Date(Date.now() + sub.leaseSeconds * 1000),
+    secret: sub.secret,
+    protocol: sub.protocol,
+    format: sub.format,
+    createdAt: currentDate,
+    updatedAt: currentDate
+  })
+}
+
+WebSubHub.prototype._subscribe = async function(sub) {
+  const isDuplicate = await this._isDuplicateSubscription(sub)
 
   if (isDuplicate === false) {
     try {
-      const currentDate = new Date()
-      // create new subscription
-      await this.subscriptionCollection.insertOne({
-        mode: subscription.mode,
-        callbackUrl: subscription.callbackUrl,
-        callbackQuery: subscription.callbackQuery,
-        topic: subscription.topic,
-        topicQuery: subscription.topicQuery,
-        leaseSeconds: subscription.leaseSeconds,
-        leaseEndAt: new Date(Date.now() + subscription.leaseSeconds * 1000),
-        secret: subscription.secret,
-        protocol: subscription.protocol,
-        format: subscription.format,
-        createdAt: currentDate,
-        updatedAt: currentDate
-      })
+      await this._createSubscription(sub)
     } catch (err) {
       throw Boom.wrap(err, 500, 'subscription could not be created')
     }
   } else {
     try {
-      // renew leaseSeconds subscription time
-      await this.subscriptionCollection.findOneAndUpdate(
-        {
-          callbackUrl: subscription.callbackUrl,
-          topic: subscription.topic,
-          protocol: subscription.protocol
-        },
-        {
-          $set: {
-            leaseSeconds: subscription.leaseSeconds,
-            updatedAt: new Date(),
-            leaseEndAt: new Date(Date.now() + subscription.leaseSeconds * 1000),
-            token: subscription.token
-          }
-        }
-      )
+      await this._renewSubscription(sub)
     } catch (err) {
       throw Boom.wrap(err, 500, 'Subscription could not be renewed')
     }
