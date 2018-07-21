@@ -31,16 +31,29 @@ WebSub provides a common mechanism for communication between publishers of any k
 
 ## Roadmap
 
+- [ ] Discovering the hub and topic URLs by looking at the HTTP headers of the resource URL.
+- [ ] Discovering the hub and topic URLs by looking at the contents of the resource URL as an XML document.
+- [ ] Discovering the hub and topic URLs by looking at the contents of the resource URL as an HTML document.
+- [x] Subscribing to the hub with a callback URL.
+- [x] Subscribing to the hub and requesting a specific lease duration.
+- [x] Subscribing to the hub with a secret and handling authenticated content distribution.
+- [x] Requesting that a subscription is deactivated by sending an unsubscribe request.
+- [ ] The Subscriber acknowledges a pending subscription on a validation request.
+- [ ] The Subscriber rejects a subscription validation request for an invalid topic URL.
+- [ ] The Subscriber returns an HTTP 2xx response when the payload is delivered.
+- [ ] The Subscriber verifies the signature for authenticated content distribution requests.
+- [ ] The Subscriber rejects the distribution request if the signature does not validate.
+- [ ] The Subscriber rejects the distribution request when no signature is present if the subscription was made with a secret.
+- [x] The Hub respects the requested lease duration during a subscription request.
+- [x] The Hub allows Subscribers to re-request already active subscriptions, extending the lease duration.
+- [x] The Hub sends the full contents of the topic URL in the distribution request.
+- [ ] The Hub sends a diff of the topic URL for the formats that support it.
+- [x] The Hub sends a valid signature for subscriptions that were made with a secret.
+
+### Additional roadmap
+
 - [x] Setup testing environment with CI
-- [x] Publishing
-- [x] Subscribing
-- [x] Subscription validation
-- [x] Leasable subscriptions (TTL)
-- [x] Signature validation
-- [x] Content Distribution over HTTP
-- [ ] Discovery
 - [ ] Auditing
-- [ ] Optimize content distribution (delta updates)
 - [ ] Websocket support
 - [ ] Benchmarks
 

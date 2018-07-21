@@ -367,9 +367,11 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
   if (mode === requestMode.SUBSCRIBE) {
     await this._createSubscription(sub)
     this.log.info(`subscription for callback '%s' was created`, callbackUrl)
-  } else {
+  } else if (mode === requestMode.UNSUBSRIBE) {
     await this._unsubscribe(sub)
     this.log.info(`subscription for callback '%s' was deleted`, callbackUrl)
+  } else {
+    throw Boom.notImplemented(`mode '${mode}' is not implemented`)
   }
 
   reply.code(200).send()
