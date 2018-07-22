@@ -3,6 +3,7 @@
   "author": "Dustin Deus <deusdustin@gmail.com> (http://www.starptech.de)",
   "scripts": {
     "precommit": "pretty-quick --staged && npm run lint && npm run test",
+    "test:ndb": "mocha -t 5000 --exit ./test/**.spec.js",
     "test": "nyc mocha -t 5000 --exit ./test/**.spec.js",
     "test:mongodb": "nyc mocha -t 5000 --exit ./test/**.spec.mongodb.js",
     "test-watch": "mocha -t 5000 -w --exit",
