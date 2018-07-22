@@ -7,6 +7,7 @@ const Hub = require('./../packages/websub-hub')
 const MongoInMemory = require('mongo-in-memory')
 const Sinon = require('sinon')
 const Nock = require('nock')
+const Delay = require('delay')
 const Fs = require('fs')
 const { parse } = require('url')
 
@@ -144,6 +145,8 @@ describe('Basic Content Distribution / Publishing', function() {
       }
     })
 
+    await Delay(100)
+
     expect(response.statusCode).to.be.equals(200)
 
     verifyIntentMock.done()
@@ -237,6 +240,8 @@ describe('Basic Content Distribution / Publishing', function() {
       }
     })
 
+    await Delay(100)
+
     expect(response.statusCode).to.be.equals(200)
 
     verifyIntentMock.done()
@@ -329,6 +334,8 @@ describe('Basic Content Distribution / Publishing', function() {
         'hub.url': topic + '/feeds'
       }
     })
+
+    await Delay(100)
 
     expect(response.statusCode).to.be.equals(200)
 

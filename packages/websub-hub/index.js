@@ -22,6 +22,8 @@ const Utils = require('./lib/utils')
 module.exports = build
 
 const defaultLeaseInSeconds = 864000 // 10 days
+const wsMaxPayload = 5 * 1024 * 1024 // 5MB
+const wsHandshakeTimeout = 300 // milliseconds
 const verifiedState = {
   ACCEPTED: 'ACCEPTED',
   DECLINED: 'DECLINED',
@@ -42,7 +44,6 @@ const defaultOptions = {
   address: 'localhost',
   hubUrl: '',
   timeout: 2000,
-
   logLevel: 'info',
   prettyLog: false,
   logger: null,
@@ -92,7 +93,7 @@ function WebSubHub(options) {
   })
 
   if (this.options.ws) {
-    const handle = async (ws, req) => {
+    const handle = async (client, req) => {
       const topic = req.headers['x-hub-topic']
       const callback = req.headers['x-hub-callback']
 
@@ -112,21 +113,30 @@ function WebSubHub(options) {
           this.log.error(
             'cannot open ws connection because subscription does not exists'
           )
-          ws.send(JSON.stringify({ code: 'WSH_SUBSCRIPTION_NOT_EXISTS' }))
-          ws.terminate()
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify({ code: 'WSH_SUBSCRIPTION_NOT_EXISTS' }))
+          }
+          client.terminate()
           return
         }
 
         const key = this.server.websocketClientKey(topicUrl, callbackUrl)
-        this._wsClients.set(key, ws)
+        this._wsClients.set(key, client)
       } catch (err) {
         this.log.error(err, 'connection could not be accepted')
-        ws.send(JSON.stringify({ code: 'WSH_INTERNAL_ERROR' }))
-        ws.terminate()
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(JSON.stringify({ code: 'WSH_INTERNAL_ERROR' }))
+        }
+        client.terminate()
       }
     }
 
-    this.server.register(WebSocket, { handle })
+    this.server.register(WebSocket, {
+      handle,
+      perMessageDeflate: false,
+      maxPayload: wsMaxPayload,
+      handshakeTimeout: wsHandshakeTimeout
+    })
   }
 
   this.httpClient = Got
@@ -348,8 +358,6 @@ WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
     this._publishingQueue.add(() => mapper(sub))
   }
 
-  await this._publishingQueue.onIdle()
-
   reply.code(200).send()
 }
 
@@ -446,13 +454,16 @@ WebSubHub.prototype._handleSubscriptionListRequest = async function(
     const cursor = this.subscriptionCollection.find({
       leaseEndAt: { $gte: new Date() }
     })
+
     cursor.project({
       secret: 0
     })
+
     const list = await cursor
       .skip(req.query.start)
       .limit(req.query.limit)
       .toArray()
+
     reply.code(200).send(list)
   } catch (err) {
     reply.send(Boom.wrap(err, 500, 'subscription could get subscriptions'))

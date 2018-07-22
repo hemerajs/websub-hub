@@ -1,7 +1,7 @@
 {
-  "name": "websub-hub",
+  "name": "websub-hub-subscriber",
   "version": "0.0.7",
-  "description": "WebSub Hub Server for NodeJs",
+  "description": "WebSub Hub subscriber for NodeJs",
   "main": "./index.js",
   "repository": {
     "type": "git",
@@ -13,28 +13,20 @@
     "url": "https://github.com/hemerajs/websub-hub/issues"
   },
   "homepage": "https://github.com/hemerajs/websub-hub#readme",
+  "bin": {
+    "websub-hub": "./lib/bin.js"
+  },
   "engines": {
     "node": ">=8"
   },
   "keywords": [
     "webshub-hub",
-    "cli",
+    "subscriber",
     "websub",
     "hub"
   ],
   "dependencies": {
-    "boom": "^7.2.0",
-    "fastify": "1.8.0",
-    "fastify-boom": "^0.1.0",
-    "fastify-formbody": "^2.0.0",
-    "fastify-mongodb": "0.8.2",
-    "fastify-plugin": "^1.2.0",
     "got": "^8.3.2",
-    "hoek": "^5.0.3",
-    "hyperid": "^1.4.1",
-    "jsonwebtoken": "^8.3.0",
-    "p-event": "^2.1.0",
-    "p-queue": "^2.4.2",
-    "ws": "^6.0.0"
+    "hoek": "^5.0.3"
   }
 }

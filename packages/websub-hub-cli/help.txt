@@ -18,5 +18,8 @@ Usage: websub-hub [opts] <file>
   -m, --mongodb-url
       Mongodb connection string (default to mongodb://localhost:27017/hub)
 
+  -ws, --websocket
+      Enable websocket support for content distribution
+
   -h, --help
       Show this help message

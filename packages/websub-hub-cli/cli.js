@@ -31,12 +31,8 @@ async function runHub(opts) {
 
   const options = {
     timeout: opts.timeout,
+    ws: opts.websocket,
     logLevel: opts['log-level'],
-    fastify: {
-      logger: {
-        level: opts['log-level']
-      }
-    },
     mongo: {
       url: opts['mongodb-url']
     }
@@ -55,13 +51,14 @@ function cli() {
   start(
     Minimist(process.argv.slice(2), {
       integer: ['port', 'timeout'],
-      boolean: [],
+      boolean: ['websocket'],
       string: ['log-level', 'address', 'file', 'mongodb-url', 'name'],
       alias: {
         port: 'p',
         help: 'h',
         file: 'f',
         timeout: 't',
+        websocket: 'ws',
         address: 'a',
         'mongodb-url': 'm',
         'log-level': 'l'

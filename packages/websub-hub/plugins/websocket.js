@@ -5,7 +5,12 @@ const WebSocket = require('ws')
 
 module.exports = Fp(
   function(fastify, opts, next) {
-    const wss = new WebSocket.Server({ server: fastify.server })
+    const wss = new WebSocket.Server({
+      server: fastify.server,
+      maxPayload: opts.maxPayload,
+      handshakeTimeout: opts.handshakeTimeout,
+      perMessageDeflate: opts.perMessageDeflate
+    })
 
     function noop() {}
 

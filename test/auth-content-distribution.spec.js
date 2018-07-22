@@ -10,6 +10,7 @@ const Sinon = require('sinon')
 const Nock = require('nock')
 const Fs = require('fs')
 const { parse } = require('url')
+const Delay = require('delay')
 
 describe('Authenticated Content Distribution', function() {
   const PORT = 3000
@@ -105,6 +106,8 @@ describe('Authenticated Content Distribution', function() {
       }
     })
 
+    await Delay(100)
+
     expect(response.statusCode).to.be.equals(200)
 
     verifyIntentMock.done()
@@ -172,6 +175,8 @@ describe('Authenticated Content Distribution', function() {
           'hub.url': topic + '/feeds'
         }
       })
+
+      await Delay(200)
     } catch (err) {
       expect(err.statusCode).to.be.equals(400)
     }

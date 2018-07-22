@@ -11,6 +11,7 @@ const Path = require('path')
 const Nock = require('nock')
 const { parse } = require('url')
 const getStream = require('get-stream')
+const Delay = require('delay')
 
 describe('Content Stream', function() {
   const PORT = 3000
@@ -111,6 +112,8 @@ describe('Content Stream', function() {
       }
     })
 
+    await Delay(100)
+
     expect(response.statusCode).to.be.equals(200)
 
     verifyIntentMock.done()
@@ -183,6 +186,8 @@ describe('Content Stream', function() {
         'hub.url': topic + '/feeds/xml'
       }
     })
+
+    await Delay(100)
 
     expect(response.statusCode).to.be.equals(200)
 
