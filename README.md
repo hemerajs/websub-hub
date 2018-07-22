@@ -61,19 +61,20 @@ WebSub provides a common mechanism for communication between publishers of any k
 
 https://w3c.github.io/websub/
 
-## Installation
-
-```
-$ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
-$ npm i -g webpub-server
-$ websub-hub-cli -l info -m mongodb://localhost:27017/hub
-```
-
 ## Getting started
 
 ```
 $ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
+$ npm i -g websub-hub-cli
+$ websub-hub-cli -l info -m mongodb://localhost:27017/hub
+```
+
+## Play
+
+```
+$ docker run -d -p 27017:27017 -p 28017:28017 -e AUTH=no tutum/mongodb
 $ node examples\full-example.js
+$ node examples\ws-full-example.js
 ```
 
 ## Test

@@ -24,6 +24,10 @@ module.exports = build
 const defaultLeaseInSeconds = 864000 // 10 days
 const wsMaxPayload = 5 * 1024 * 1024 // 5MB
 const wsHandshakeTimeout = 300 // milliseconds
+const wsCodes = {
+  WSH_INTERNAL_ERROR: 'WSH_INTERNAL_ERROR',
+  WSH_SUBSCRIPTION_NOT_EXISTS: 'WSH_SUBSCRIPTION_NOT_EXISTS'
+}
 const verifiedState = {
   ACCEPTED: 'ACCEPTED',
   DECLINED: 'DECLINED',
@@ -114,7 +118,9 @@ function WebSubHub(options) {
             'cannot open ws connection because subscription does not exists'
           )
           if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({ code: 'WSH_SUBSCRIPTION_NOT_EXISTS' }))
+            client.send(
+              JSON.stringify({ code: wsCodes.WSH_SUBSCRIPTION_NOT_EXISTS })
+            )
           }
           client.terminate()
           return
@@ -125,7 +131,7 @@ function WebSubHub(options) {
       } catch (err) {
         this.log.error(err, 'connection could not be accepted')
         if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ code: 'WSH_INTERNAL_ERROR' }))
+          client.send(JSON.stringify({ code: wsCodes.WSH_INTERNAL_ERROR }))
         }
         client.terminate()
       }
