@@ -7,6 +7,7 @@ const Hub = require('./../packages/websub-hub')
 const MongoInMemory = require('mongo-in-memory')
 const Sinon = require('sinon')
 const Nock = require('nock')
+const Fs = require('fs')
 const { parse } = require('url')
 
 describe('Basic Subscription list', function() {
@@ -15,6 +16,9 @@ describe('Basic Subscription list', function() {
   let mongoInMemory
   let topic = ''
   let counter = 0
+  const blogFeeds = JSON.parse(
+    Fs.readFileSync(__dirname + '/fixtures/sample.json', 'utf8')
+  )
 
   before(done => {
     mongoInMemory = new MongoInMemory()
@@ -45,25 +49,6 @@ describe('Basic Subscription list', function() {
 
   it('Should return list of all active subscriptions', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
-    const blogFeeds = {
-      version: 'https://jsonfeed.org/version/1',
-      title: 'My Example Feed',
-      updated: '2003-12-13T18:30:02Z',
-      home_page_url: 'https://example.org/',
-      feed_url: 'https://example.org/feed.json',
-      items: [
-        {
-          id: '2',
-          content_text: 'This is a second item.',
-          url: 'https://example.org/second-item'
-        },
-        {
-          id: '1',
-          content_html: '<p>Hello, world!</p>',
-          url: 'https://example.org/initial-post'
-        }
-      ]
-    }
     const createSubscriptionBody = {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',

@@ -7,6 +7,7 @@ const Hub = require('./../packages/websub-hub')
 const MongoInMemory = require('mongo-in-memory')
 const Sinon = require('sinon')
 const Nock = require('nock')
+const Fs = require('fs')
 const { parse } = require('url')
 
 describe('Basic Content Distribution / Publishing', function() {
@@ -15,6 +16,9 @@ describe('Basic Content Distribution / Publishing', function() {
   let mongoInMemory
   let topic = ''
   let counter = 0
+  const blogFeeds = JSON.parse(
+    Fs.readFileSync(__dirname + '/fixtures/sample.json', 'utf8')
+  )
 
   before(done => {
     mongoInMemory = new MongoInMemory()
@@ -45,25 +49,6 @@ describe('Basic Content Distribution / Publishing', function() {
 
   it('Should not be able to publish because topic endpoint does not respond with success code', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
-    const blogFeeds = {
-      version: 'https://jsonfeed.org/version/1',
-      title: 'My Example Feed',
-      updated: '2003-12-13T18:30:02Z',
-      home_page_url: 'https://example.org/',
-      feed_url: 'https://example.org/feed.json',
-      items: [
-        {
-          id: '2',
-          content_text: 'This is a second item.',
-          url: 'https://example.org/second-item'
-        },
-        {
-          id: '1',
-          content_html: '<p>Hello, world!</p>',
-          url: 'https://example.org/initial-post'
-        }
-      ]
-    }
     const createSubscriptionBody = {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
@@ -111,25 +96,6 @@ describe('Basic Content Distribution / Publishing', function() {
 
   it('Should be able to publish to topic and distribute content to subscriber', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
-    const blogFeeds = {
-      version: 'https://jsonfeed.org/version/1',
-      title: 'My Example Feed',
-      updated: '2003-12-13T18:30:02Z',
-      home_page_url: 'https://example.org/',
-      feed_url: 'https://example.org/feed.json',
-      items: [
-        {
-          id: '2',
-          content_text: 'This is a second item.',
-          url: 'https://example.org/second-item'
-        },
-        {
-          id: '1',
-          content_html: '<p>Hello, world!</p>',
-          url: 'https://example.org/initial-post'
-        }
-      ]
-    }
     const createSubscriptionBody = {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
@@ -189,25 +155,6 @@ describe('Basic Content Distribution / Publishing', function() {
 
   it('Should receive the correct query paramaters when the hub initiated a verification request', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
-    const blogFeeds = {
-      version: 'https://jsonfeed.org/version/1',
-      title: 'My Example Feed',
-      updated: '2003-12-13T18:30:02Z',
-      home_page_url: 'https://example.org/',
-      feed_url: 'https://example.org/feed.json',
-      items: [
-        {
-          id: '2',
-          content_text: 'This is a second item.',
-          url: 'https://example.org/second-item'
-        },
-        {
-          id: '1',
-          content_html: '<p>Hello, world!</p>',
-          url: 'https://example.org/initial-post'
-        }
-      ]
-    }
     const createSubscriptionBody = {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
@@ -245,25 +192,6 @@ describe('Basic Content Distribution / Publishing', function() {
 
   it('Should request callbackUrl with query parameters', async function() {
     const callbackUrl = 'http://127.0.0.1:3002?foo=bar'
-    const blogFeeds = {
-      version: 'https://jsonfeed.org/version/1',
-      title: 'My Example Feed',
-      updated: '2003-12-13T18:30:02Z',
-      home_page_url: 'https://example.org/',
-      feed_url: 'https://example.org/feed.json',
-      items: [
-        {
-          id: '2',
-          content_text: 'This is a second item.',
-          url: 'https://example.org/second-item'
-        },
-        {
-          id: '1',
-          content_html: '<p>Hello, world!</p>',
-          url: 'https://example.org/initial-post'
-        }
-      ]
-    }
     const createSubscriptionBody = {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
@@ -321,25 +249,6 @@ describe('Basic Content Distribution / Publishing', function() {
   it('Should not abort the distribution process when one subscriber return none-success status code', async function() {
     const callbackUrl1 = 'http://127.0.0.1:3002'
     const callbackUrl2 = 'http://127.0.0.1:3003'
-    const blogFeeds = {
-      version: 'https://jsonfeed.org/version/1',
-      title: 'My Example Feed',
-      updated: '2003-12-13T18:30:02Z',
-      home_page_url: 'https://example.org/',
-      feed_url: 'https://example.org/feed.json',
-      items: [
-        {
-          id: '2',
-          content_text: 'This is a second item.',
-          url: 'https://example.org/second-item'
-        },
-        {
-          id: '1',
-          content_html: '<p>Hello, world!</p>',
-          url: 'https://example.org/initial-post'
-        }
-      ]
-    }
     const createSubscriptionBody1 = {
       'hub.callback': callbackUrl1,
       'hub.mode': 'subscribe',
