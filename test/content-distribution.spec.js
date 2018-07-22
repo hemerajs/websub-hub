@@ -79,16 +79,14 @@ describe('Basic Content Distribution / Publishing', function() {
     expect(response.statusCode).to.be.equals(200)
 
     try {
-      response = await Got.post(`http://localhost:${PORT}/publish`, {
+      await Got.post(`http://localhost:${PORT}/publish`, {
         form: true,
         body: {
           'hub.mode': 'publish',
           'hub.url': topic + '/feeds'
         }
       })
-    } catch (err) {
-      expect(err.statusCode).to.be.equals(404)
-    }
+    } catch (err) {}
 
     verifyIntentMock.done()
     topicContentMock.done()

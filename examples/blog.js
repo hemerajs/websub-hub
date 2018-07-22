@@ -1,9 +1,9 @@
 const fastify = require('fastify')
 
-module.exports = async function() {
-  const server = fastify()
+module.exports = async function(options) {
+  const server = fastify(options)
   server.get('/feeds', function(req, res) {
-    console.log('Content provided')
+    console.log('content provided')
 
     res.send({
       version: 'https://jsonfeed.org/version/1',

@@ -27,7 +27,6 @@ describe('Basic Subscription list', function() {
 
   before(function() {
     hub = Hub({
-      timeout: 500,
       logLevel: 'debug',
       mongo: {
         url: mongoInMemory.getMongouri('hub')

@@ -29,7 +29,6 @@ describe('Authenticated Content Distribution', function() {
 
   before(function() {
     hub = Hub({
-      timeout: 500,
       logLevel: 'debug',
       mongo: {
         url: mongoInMemory.getMongouri('hub')

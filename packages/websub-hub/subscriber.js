@@ -13,13 +13,14 @@ function Subscriber(options) {
   this.httpClient = Got
 }
 
-Subscriber.prototype.subscribe = function(topic, callbackUrl) {
+Subscriber.prototype.subscribe = function(topic, callbackUrl, useWebsocket) {
   return this.httpClient.post(this.options.hubUrl, {
     form: true,
     body: {
       'hub.callback': callbackUrl,
       'hub.mode': 'subscribe',
-      'hub.topic': topic
+      'hub.topic': topic,
+      'hub.ws': !!useWebsocket
     }
   })
 }

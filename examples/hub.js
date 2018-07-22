@@ -2,13 +2,14 @@
 
 const Hub = require('../packages/websub-hub')
 
-module.exports = async function() {
+module.exports = async function(options) {
   const hub = Hub({
     port: 3000,
     logLevel: 'info',
     mongo: {
       url: 'mongodb://localhost:27017/hub'
-    }
+    },
+    ...options
   })
 
   await hub.listen()

@@ -14,8 +14,8 @@ const Serializer = require('./lib/serializer')
 const safeEqual = require('./lib/safeEqual')
 const Crypto = require('crypto')
 const PEvent = require('p-event')
-const MimeTypes = require('mime-types')
 const Stream = require('stream')
+const WebSocket = require('./plugins/websocket')
 const PQueue = require('p-queue')
 const Utils = require('./lib/utils')
 
@@ -42,10 +42,12 @@ const defaultOptions = {
   address: 'localhost',
   hubUrl: '',
   timeout: 2000,
+
   logLevel: 'info',
   prettyLog: false,
   logger: null,
   https: null,
+  ws: false,
   mongo: {
     url: '',
     useNewUrlParser: true
@@ -68,6 +70,7 @@ function WebSubHub(options) {
   this.options = options
   this._configureLogger()
   this._publishingQueue = new PQueue({ concurrency: 4 })
+  this._wsClients = new Map()
 
   this.server = Fastify({
     https: this.options.https,
@@ -87,6 +90,44 @@ function WebSubHub(options) {
 
     return this._setupDbIndizes()
   })
+
+  if (this.options.ws) {
+    const handle = async (ws, req) => {
+      const topic = req.headers['x-hub-topic']
+      const callback = req.headers['x-hub-callback']
+
+      try {
+        const normalizedTopicUrl = Utils.normalizeUrl(topic)
+        const topicUrl = normalizedTopicUrl.url
+
+        const normalizedCallback = Utils.normalizeUrl(callback)
+        const callbackUrl = normalizedCallback.url
+
+        const exists = await this._subscriptionExists({
+          topic: topicUrl,
+          callbackUrl
+        })
+
+        if (exists === false) {
+          this.log.error(
+            'cannot open ws connection because subscription does not exists'
+          )
+          ws.send(JSON.stringify({ code: 'WSH_SUBSCRIPTION_NOT_EXISTS' }))
+          ws.terminate()
+          return
+        }
+
+        const key = this.server.websocketClientKey(topicUrl, callbackUrl)
+        this._wsClients.set(key, ws)
+      } catch (err) {
+        this.log.error(err, 'connection could not be accepted')
+        ws.send(JSON.stringify({ code: 'WSH_INTERNAL_ERROR' }))
+        ws.terminate()
+      }
+    }
+
+    this.server.register(WebSocket, { handle })
+  }
 
   this.httpClient = Got
   this.hyperid = Hyperid()
@@ -181,38 +222,30 @@ WebSubHub.prototype._verifyIntent = async function(
   return verifiedState.DECLINED
 }
 
-WebSubHub.prototype._distributeContentHttp = async function(sub, content) {
-  const headers = {}
-
-  if (sub.format === 'json') {
-    headers['content-type'] = 'application/json'
-  } else if (sub.format === 'xml') {
-    headers['content-type'] = 'application/xml'
-  }
-
-  // The request MUST include at least one Link Header [RFC5988] with rel=hub pointing to a Hub associated with the topic being updated.
-  // It MUST also include one Link Header [RFC5988] with rel=self set to the canonical URL of the topic being updated.
-  headers.link = `<${this._getHubUrl()}>; rel="hub", <${sub.topic}>; rel="self"`
-
+WebSubHub.prototype._distributeContentHTTP = async function(
+  sub,
+  stream,
+  headers
+) {
   // must send a X-Hub-Signature header if the subscription was made with a hub.secret
   // https://w3c.github.io/websub/#signing-content
   if (sub.secret) {
-    const stream1 = content.stream.pipe(new Stream.PassThrough())
-    const stream2 = content.stream.pipe(new Stream.PassThrough())
+    const stream1 = stream.pipe(new Stream.PassThrough())
+    const stream2 = stream.pipe(new Stream.PassThrough())
 
     const hmac = Crypto.createHmac('sha256', sub.secret).setEncoding('hex')
     const hashStream = stream1.pipe(hmac)
 
     await PEvent(hashStream, 'readable')
     headers['x-hub-signature'] = 'sha256=' + hmac.read()
-    return this._sendContentHttp(sub, stream2, headers)
+    return this._sendContentHTTP(sub, stream2, headers)
   }
 
-  return this._sendContentHttp(sub, content.stream, headers)
+  return this._sendContentHTTP(sub, stream, headers)
 }
 
-WebSubHub.prototype._sendContentHttp = async function(sub, source, headers) {
-  const stream = source.pipe(
+WebSubHub.prototype._sendContentHTTP = async function(sub, stream, headers) {
+  const output = stream.pipe(
     this.httpClient.stream.post(sub.callbackUrl, {
       query: sub.callbackQuery,
       retries: this.options.retries,
@@ -222,7 +255,7 @@ WebSubHub.prototype._sendContentHttp = async function(sub, source, headers) {
   )
 
   try {
-    await PEvent(stream, 'response')
+    await PEvent(output, 'response')
   } catch (err) {
     this.log.error(
       err,
@@ -231,6 +264,43 @@ WebSubHub.prototype._sendContentHttp = async function(sub, source, headers) {
     )
 
     throw Boom.badRequest('content could not be published')
+  }
+}
+
+WebSubHub.prototype._distributeContentWS = function(sub, data, headers) {
+  if (sub.secret) {
+    const hmac = Crypto.createHmac('sha256', sub.secret)
+      .setEncoding('hex')
+      .update(data)
+
+    headers['x-hub-signature'] = 'sha256=' + hmac.digest('hex')
+    this._sendContentWS(sub, data, headers)
+    return
+  }
+
+  this._sendContentWS(sub, data, headers)
+}
+
+WebSubHub.prototype._sendContentWS = function(sub, data, headers) {
+  const key = this.server.websocketClientKey(sub.topic, sub.callbackUrl)
+
+  if (this._wsClients.has(key)) {
+    const client = this._wsClients.get(key)
+    try {
+      const msg = {
+        topic: sub.topic,
+        headers,
+        query: sub.callbackQuery,
+        data: JSON.parse(data)
+      }
+      client.send(JSON.stringify(msg))
+    } catch (err) {
+      this.log.error(
+        err,
+        `content could not be published over WS to '%s'`,
+        sub.callbackUrl
+      )
+    }
   }
 }
 
@@ -243,8 +313,27 @@ WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
 
   const mapper = async sub => {
     try {
-      const content = await this._fetchTopicContent(sub)
-      await this._distributeContentHttp(sub, content)
+      const headers = {}
+
+      if (sub.format === 'json') {
+        headers['content-type'] = 'application/json'
+      } else if (sub.format === 'xml') {
+        headers['content-type'] = 'application/xml'
+      }
+
+      // The request MUST include at least one Link Header [RFC5988] with rel=hub pointing to a Hub associated with the topic being updated.
+      // It MUST also include one Link Header [RFC5988] with rel=self set to the canonical URL of the topic being updated.
+      headers.link = `<${this._getHubUrl()}>; rel="hub", <${
+        sub.topic
+      }>; rel="self"`
+
+      if (sub.ws === true) {
+        const response = await this._fetchTopicContent(sub)
+        this._distributeContentWS(sub, response.body, headers)
+      } else if (sub.protocol === 'http:') {
+        const response = await this._fetchTopicContent(sub, true)
+        await this._distributeContentHTTP(sub, response, headers)
+      }
     } catch (err) {
       this.log.error(
         err,
@@ -264,7 +353,7 @@ WebSubHub.prototype._handlePublishRequest = async function(req, reply) {
   reply.code(200).send()
 }
 
-WebSubHub.prototype._fetchTopicContent = async function(sub) {
+WebSubHub.prototype._fetchTopicContent = async function(sub, stream = false) {
   const headers = {}
 
   if (sub.format === 'json') {
@@ -273,32 +362,25 @@ WebSubHub.prototype._fetchTopicContent = async function(sub) {
     headers.accept = 'application/xml'
   }
 
-  let stream = null
+  let response = null
 
   try {
-    stream = await this.httpClient.get(sub.topic, {
-      stream: true,
+    response = await this.httpClient.get(sub.topic, {
+      stream,
       retries: this.options.retries,
       headers,
       timeout: this.options.timeout
     })
+
+    if (stream) {
+      await PEvent(response, 'response')
+    }
   } catch (err) {
     this.log.error(err, `from topic '%s' could not be fetched`, sub.topic)
     throw Boom.notFound('from topic could not be fetched')
   }
 
-  let contentType = sub.format
-
-  const response = await PEvent(stream, 'response')
-
-  if (response.headers) {
-    contentType = MimeTypes.extension(response.headers['content-type'])
-  }
-
-  return {
-    stream,
-    contentType
-  }
+  return response
 }
 
 WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
@@ -306,6 +388,7 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
   const leaseSeconds = req.body['hub.lease_seconds'] || defaultLeaseInSeconds
   const secret = req.body['hub.secret']
   const format = req.body['hub.format']
+  const ws = req.body['hub.ws']
   const challenge = this.hyperid()
 
   const normalizedTopicUrl = Utils.normalizeUrl(req.body['hub.topic'])
@@ -318,6 +401,7 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
   const protocol = normalizedCallbackUrl.protocol
 
   const sub = {
+    ws,
     mode,
     callbackUrl,
     callbackQuery,
@@ -375,20 +459,28 @@ WebSubHub.prototype._handleSubscriptionListRequest = async function(
   }
 }
 
-WebSubHub.prototype._unsubscribe = function(sub) {
-  return this.subscriptionCollection.findOneAndDelete({
+WebSubHub.prototype._unsubscribe = async function(sub) {
+  await this.subscriptionCollection.findOneAndDelete({
     topic: sub.topic,
-    callbackUrl: sub.callbackUrl,
-    protocol: sub.protocol
+    callbackUrl: sub.callbackUrl
   })
+
+  if (this.options.ws) {
+    const key = this.server.websocketClientKey(sub.topic, sub.callbackUrl)
+
+    if (this._wsClients.has(key)) {
+      const ws = this._wsClients.get(key)
+      ws.terminate()
+      this._wsClients.delete(key)
+    }
+  }
 }
 
-WebSubHub.prototype._isDuplicateSubscription = async function(sub) {
+WebSubHub.prototype._subscriptionExists = async function(sub) {
   const entry = await this.subscriptionCollection.findOne({
     leaseEndAt: { $gte: new Date() },
     topic: sub.topic,
-    callbackUrl: sub.callbackUrl,
-    protocol: sub.protocol
+    callbackUrl: sub.callbackUrl
   })
 
   if (entry !== null) {
@@ -402,8 +494,7 @@ WebSubHub.prototype._renewSubscription = function(sub) {
   return this.subscriptionCollection.findOneAndUpdate(
     {
       callbackUrl: sub.callbackUrl,
-      topic: sub.topic,
-      protocol: sub.protocol
+      topic: sub.topic
     },
     {
       $set: {
@@ -428,15 +519,16 @@ WebSubHub.prototype._createSubscription = function(sub) {
     secret: sub.secret,
     protocol: sub.protocol,
     format: sub.format,
+    ws: sub.ws,
     createdAt: currentDate,
     updatedAt: currentDate
   })
 }
 
 WebSubHub.prototype._subscribe = async function(sub) {
-  const isDuplicate = await this._isDuplicateSubscription(sub)
+  const exists = await this._subscriptionExists(sub)
 
-  if (isDuplicate === false) {
+  if (exists === false) {
     try {
       await this._createSubscription(sub)
     } catch (err) {
@@ -472,5 +564,9 @@ WebSubHub.prototype.listen = function() {
 }
 
 WebSubHub.prototype.close = function() {
+  if (this.options.ws) {
+    this.server.websocketServer.close()
+  }
+
   return this.server.close()
 }

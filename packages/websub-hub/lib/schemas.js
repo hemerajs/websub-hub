@@ -8,6 +8,7 @@ module.exports.subscriptionRequest = {
       'hub.callback': { format: 'uri' },
       'hub.mode': { enum: ['subscribe', 'unsubscribe'] },
       'hub.topic': { format: 'uri' },
+      'hub.ws': { type: 'boolean' },
       'hub.lease_seconds': { type: 'integer' },
       'hub.secret': { type: 'string', minLength: 12 },
       'hub.format': {

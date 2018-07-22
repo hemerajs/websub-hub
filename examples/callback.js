@@ -1,10 +1,11 @@
 const fastify = require('fastify')
 
-module.exports = async function() {
+module.exports = async function(options) {
   const server = fastify({
     logger: {
       level: 'info'
-    }
+    },
+    ...options
   })
   server.get('/', function(req, res) {
     console.log('subscription verified', req.query)

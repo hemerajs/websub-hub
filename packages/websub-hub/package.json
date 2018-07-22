@@ -31,12 +31,13 @@
     "fastify-boom": "^0.1.0",
     "fastify-formbody": "^2.0.0",
     "fastify-mongodb": "0.8.2",
+    "fastify-plugin": "^1.2.0",
     "got": "^8.3.2",
     "hoek": "^5.0.3",
     "hyperid": "^1.4.1",
     "jsonwebtoken": "^8.3.0",
-    "mime-types": "^2.1.19",
     "p-event": "^2.1.0",
-    "p-queue": "^2.4.2"
+    "p-queue": "^2.4.2",
+    "ws": "^6.0.0"
   }
 }

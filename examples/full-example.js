@@ -16,6 +16,7 @@ async function start() {
     hubUrl: 'http://127.0.0.1:3000'
   })
 
+  await sub.unsubscribe('http://localhost:6000/feeds', 'http://localhost:5000')
   await sub.subscribe('http://localhost:6000/feeds', 'http://localhost:5000')
 
   const pub = new Publisher({

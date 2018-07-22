@@ -54,7 +54,7 @@ WebSub provides a common mechanism for communication between publishers of any k
 
 - [x] Setup testing environment with CI
 - [ ] Auditing
-- [ ] Websocket support
+- [x] Content distribution over Websocket
 - [ ] Benchmarks
 
 ## Specification
