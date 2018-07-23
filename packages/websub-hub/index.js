@@ -432,10 +432,15 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
     format
   }
 
-  // If the signature does not match, subscribers MUST locally ignore the message as invalid.
-  // Subscribers MAY still acknowledge this request with a 2xx response code
-  // in order to be able to process the message asynchronously and/or prevent brute-force attempts of the signature
-  await this._verifyIntent(sub, challenge)
+  const intentResult = await this._verifyIntent(sub, challenge)
+
+  if (intentResult === verificationState.DECLINED) {
+    reply.code(404).send()
+    return
+  } else if (intentResult === verificationState.HTTP_ERROR) {
+    reply.code(404).send()
+    return
+  }
 
   this.log.info(`'%s' for callback '%s' was verified`, mode, callbackUrl)
 

@@ -121,7 +121,7 @@ describe('Basic Unsubscription', function() {
         }
       })
     } catch (err) {
-      expect(err.statusCode).to.be.equals(403)
+      expect(err.statusCode).to.be.equals(404)
     }
     verifyUnsubscriptionIntentMock.done()
   })
@@ -168,7 +168,7 @@ describe('Basic Unsubscription', function() {
         }
       })
     } catch (err) {
-      expect(err.statusCode).to.be.equals(403)
+      expect(err.statusCode).to.be.equals(404)
     }
     verifyUnsubscriptionIntentMock.done()
   })

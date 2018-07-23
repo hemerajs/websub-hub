@@ -42,7 +42,7 @@ describe('Basic Subscription', function() {
     })
   })
 
-  it('Should respond with 403 because intent could not be verified', async function() {
+  it('Should respond with 404 because intent could not be verified', async function() {
     const callbackUrl = 'http://127.0.0.1:3001'
     const createSubscriptionBody = {
       'hub.callback': callbackUrl,
@@ -62,7 +62,7 @@ describe('Basic Subscription', function() {
         body: createSubscriptionBody
       })
     } catch (err) {
-      expect(err.statusCode).to.be.equals(403)
+      expect(err.statusCode).to.be.equals(404)
       verifyIntentMock.done()
     }
   })
