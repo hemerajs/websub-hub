@@ -11,13 +11,13 @@ const Boom = require('boom')
 const Hoek = require('hoek')
 const Pino = require('pino')
 const Serializer = require('./lib/serializer')
-const safeEqual = require('./lib/safeEqual')
 const Crypto = require('crypto')
 const PEvent = require('p-event')
 const Stream = require('stream')
 const WebSocket = require('./plugins/websocket')
 const PQueue = require('p-queue')
 const Utils = require('./lib/utils')
+const WS = require('ws')
 
 module.exports = build
 
@@ -28,7 +28,7 @@ const wsCodes = {
   WSH_INTERNAL_ERROR: 'WSH_INTERNAL_ERROR',
   WSH_SUBSCRIPTION_NOT_EXISTS: 'WSH_SUBSCRIPTION_NOT_EXISTS'
 }
-const verifiedState = {
+const verificationState = {
   ACCEPTED: 'ACCEPTED',
   DECLINED: 'DECLINED',
   HTTP_ERROR: 'HTTP_ERROR'
@@ -117,7 +117,7 @@ function WebSubHub(options) {
           this.log.error(
             'cannot open ws connection because subscription does not exists'
           )
-          if (client.readyState === WebSocket.OPEN) {
+          if (client.readyState === WS.OPEN) {
             client.send(
               JSON.stringify({ code: wsCodes.WSH_SUBSCRIPTION_NOT_EXISTS })
             )
@@ -130,7 +130,7 @@ function WebSubHub(options) {
         this._wsClients.set(key, client)
       } catch (err) {
         this.log.error(err, 'connection could not be accepted')
-        if (client.readyState === WebSocket.OPEN) {
+        if (client.readyState === WS.OPEN) {
           client.send(JSON.stringify({ code: wsCodes.WSH_INTERNAL_ERROR }))
         }
         client.terminate()
@@ -223,19 +223,19 @@ WebSubHub.prototype._verifyIntent = async function(
       callbackUrl,
       err.statusCode
     )
-    return verifiedState.HTTP_ERROR
+    return verificationState.HTTP_ERROR
   }
 
   if (
     response.body &&
     response.body['hub.challenge'] &&
     challenge &&
-    safeEqual(response.body['hub.challenge'], challenge)
+    Utils.safeEqual(response.body['hub.challenge'], challenge)
   ) {
-    return verifiedState.ACCEPTED
+    return verificationState.ACCEPTED
   }
 
-  return verifiedState.DECLINED
+  return verificationState.DECLINED
 }
 
 WebSubHub.prototype._distributeContentHTTP = async function(
@@ -313,7 +313,7 @@ WebSubHub.prototype._sendContentWS = function(sub, data, headers) {
     } catch (err) {
       this.log.error(
         err,
-        `content could not be published over WS to '%s'`,
+        `content could not be send over WS to '%s'`,
         sub.callbackUrl
       )
     }
@@ -429,10 +429,10 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
 
   const intentResult = await this._verifyIntent(sub, challenge)
 
-  if (intentResult === verifiedState.DECLINED) {
+  if (intentResult === verificationState.DECLINED) {
     reply.send(Boom.forbidden('subscriber has declined'))
     return
-  } else if (intentResult === verifiedState.HTTP_ERROR) {
+  } else if (intentResult === verificationState.HTTP_ERROR) {
     reply.send(Boom.forbidden('subscriber could not be verified'))
     return
   }
@@ -483,13 +483,17 @@ WebSubHub.prototype._unsubscribe = async function(sub) {
   })
 
   if (this.options.ws) {
-    const key = this.server.websocketClientKey(sub.topic, sub.callbackUrl)
+    this._unsubscribeWS(sub)
+  }
+}
 
-    if (this._wsClients.has(key)) {
-      const ws = this._wsClients.get(key)
-      ws.terminate()
-      this._wsClients.delete(key)
-    }
+WebSubHub.prototype._unsubscribeWS = async function(sub) {
+  const key = this.server.websocketClientKey(sub.topic, sub.callbackUrl)
+
+  if (this._wsClients.has(key)) {
+    const ws = this._wsClients.get(key)
+    ws.terminate()
+    this._wsClients.delete(key)
   }
 }
 

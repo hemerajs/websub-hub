@@ -121,4 +121,62 @@ describe('Websocket Content Distribution', function() {
           .catch(done)
       })
   })
+
+  it('Should return error when subscription was not created before', function(done) {
+    const callbackUrl = 'http://127.0.0.1:3002'
+    const createSubscriptionBody = {
+      'hub.callback': callbackUrl,
+      'hub.mode': 'subscribe',
+      'hub.topic': topic + '/feeds',
+      'hub.ws': true
+    }
+
+    const verifyIntentMock = Nock(callbackUrl)
+      .get('/')
+      .query(true)
+      .reply(uri => {
+        const query = parse(uri, true).query
+        return [
+          200,
+          { ...createSubscriptionBody, 'hub.challenge': query['hub.challenge'] }
+        ]
+      })
+
+    const topicContentMock = Nock(topic)
+      .get('/feeds')
+      .query(true)
+      .reply(200, blogFeeds)
+
+    const ws = new WebSocket(`ws://localhost:${PORT}/`, {
+      origin: `ws://localhost:${PORT}/`,
+      headers: {
+        'x-hub-topic': createSubscriptionBody['hub.topic'],
+        'x-hub-callback': createSubscriptionBody['hub.callback']
+      }
+    })
+
+    PEvent(ws, 'open')
+      .then(() => {
+        ws.once('message', function incoming(data) {
+          const msg = JSON.parse(data)
+          expect(msg.code).to.be.equals('WSH_SUBSCRIPTION_NOT_EXISTS')
+          done()
+        })
+      })
+      .then(() => {
+        return Got.post(`http://localhost:${PORT}/publish`, {
+          form: true,
+          body: {
+            'hub.mode': 'publish',
+            'hub.url': topic + '/feeds'
+          }
+        })
+      })
+      .then(response => {
+        expect(response.statusCode).to.be.equals(200)
+        verifyIntentMock.done()
+        topicContentMock.done()
+      })
+      .catch(done)
+  })
 })
