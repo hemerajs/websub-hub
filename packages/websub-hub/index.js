@@ -219,7 +219,7 @@ WebSubHub.prototype._verifyIntent = async function(
   } catch (err) {
     this.log.error(
       err,
-      `could not request subscription callback '%s', statusCode: %d`,
+      `subscription could not be verified '%s', statusCode: %d`,
       callbackUrl,
       err.statusCode
     )
@@ -234,6 +234,11 @@ WebSubHub.prototype._verifyIntent = async function(
   ) {
     return verificationState.ACCEPTED
   }
+
+  this.log.error(
+    `subscription could not be verified '%s', invalid challenge`,
+    callbackUrl
+  )
 
   return verificationState.DECLINED
 }
@@ -427,15 +432,10 @@ WebSubHub.prototype._handleSubscriptionRequest = async function(req, reply) {
     format
   }
 
-  const intentResult = await this._verifyIntent(sub, challenge)
-
-  if (intentResult === verificationState.DECLINED) {
-    reply.send(Boom.forbidden('subscriber has declined'))
-    return
-  } else if (intentResult === verificationState.HTTP_ERROR) {
-    reply.send(Boom.forbidden('subscriber could not be verified'))
-    return
-  }
+  // If the signature does not match, subscribers MUST locally ignore the message as invalid.
+  // Subscribers MAY still acknowledge this request with a 2xx response code
+  // in order to be able to process the message asynchronously and/or prevent brute-force attempts of the signature
+  await this._verifyIntent(sub, challenge)
 
   this.log.info(`'%s' for callback '%s' was verified`, mode, callbackUrl)
 

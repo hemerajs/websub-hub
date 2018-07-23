@@ -167,19 +167,17 @@ describe('Authenticated Content Distribution', function() {
         return [200, '']
       })
 
-    try {
-      response = await Got.post(`http://localhost:${PORT}/publish`, {
-        form: true,
-        body: {
-          'hub.mode': 'publish',
-          'hub.url': topic + '/feeds'
-        }
-      })
+    response = await Got.post(`http://localhost:${PORT}/publish`, {
+      form: true,
+      body: {
+        'hub.mode': 'publish',
+        'hub.url': topic + '/feeds'
+      }
+    })
 
-      await Delay(100)
-    } catch (err) {
-      expect(err.statusCode).to.be.equals(400)
-    }
+    await Delay(100)
+
+    expect(response.statusCode).to.be.equals(200)
 
     verifyIntentMock.done()
     topicContentMock.done()
