@@ -115,7 +115,7 @@ describe('Authenticated Content Distribution', function() {
     verifyPublishedContentMock.done()
   })
 
-  it('Subscriber has verified that the content was manipulated', async function() {
+  it('Subscriber respond with 401 because the paylaod signature is wrong', async function() {
     const callbackUrl = 'http://127.0.0.1:3002'
     const secret = '123456789101112'
     const createSubscriptionBody = {
@@ -176,7 +176,7 @@ describe('Authenticated Content Distribution', function() {
         }
       })
 
-      await Delay(200)
+      await Delay(100)
     } catch (err) {
       expect(err.statusCode).to.be.equals(400)
     }
