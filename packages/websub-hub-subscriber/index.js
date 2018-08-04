@@ -12,7 +12,11 @@ module.exports = function build(options) {
   options = Hoek.applyToDefaults(defaultOptions, options || {})
 
   const subscriber = {}
-  subscriber.httpClient = Got
+  subscriber.httpClient = Got.extend({
+    timeout: options.timeout,
+    baseUrl: options.hubUrl,
+    form: true
+  })
   subscriber.subscribe = subscribe
   subscriber.unsubscribe = unsubscribe
   subscriber.list = list
@@ -20,8 +24,7 @@ module.exports = function build(options) {
   return subscriber
 
   function subscribe(topic, callbackUrl, useWebsocket) {
-    return this.httpClient.post(options.hubUrl, {
-      form: true,
+    return this.httpClient.post('/', {
       body: {
         'hub.callback': callbackUrl,
         'hub.mode': 'subscribe',
@@ -32,8 +35,7 @@ module.exports = function build(options) {
   }
 
   function unsubscribe(topic, callbackUrl) {
-    return this.httpClient.post(options.hubUrl, {
-      form: true,
+    return this.httpClient.post('/', {
       body: {
         'hub.callback': callbackUrl,
         'hub.mode': 'unsubscribe',
@@ -43,7 +45,7 @@ module.exports = function build(options) {
   }
 
   function list(start, limit) {
-    return this.httpClient.get(options.hubUrl + '/subscriptions', {
+    return this.httpClient.get('/subscriptions', {
       query: { start, limit }
     })
   }

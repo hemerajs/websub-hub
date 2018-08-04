@@ -13,11 +13,12 @@
     "publish": "lerna publish",
     "lint": "eslint ./**/*.js",
     "coverage": "npm run test && nyc report --reporter=html",
-    "coveralls": "nyc report --reporter=text-lcov | coveralls"
+    "coveralls": "nyc report --reporter=text-lcov | coveralls",
+    "lerna": "lerna"
   },
   "devDependencies": {
     "code": "^5.2.0",
-    "concurrently": "^3.6.0",
+    "concurrently": "^3.6.1",
     "coveralls": "^3.0.2",
     "delay": "^3.0.0",
     "eslint": "^4.19.1",
@@ -30,7 +31,7 @@
     "eslint-plugin-prettier": "^2.6.2",
     "eslint-plugin-promise": "^3.8.0",
     "eslint-plugin-standard": "^3.1.0",
-    "fastify": "^1.8.0",
+    "fastify": "^1.9.0",
     "husky": "^0.14.3",
     "istanbul": "^0.4.5",
     "lerna": "^2.11.0",
@@ -39,9 +40,9 @@
     "nock": "^9.4.2",
     "nyc": "^12.0.2",
     "p-event": "^2.1.0",
-    "prettier": "^1.13.7",
+    "prettier": "^1.14.0",
     "pretty-quick": "^1.6.0",
-    "sinon": "^6.1.3",
+    "sinon": "^6.1.4",
     "split2": "^2.2.0",
     "ws": "^6.0.0"
   },

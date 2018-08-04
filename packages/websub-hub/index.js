@@ -57,7 +57,7 @@ const defaultOptions = {
     url: '',
     useNewUrlParser: true
   },
-  retries: 2
+  retry: 2
 }
 
 function build(options) {
@@ -145,7 +145,10 @@ function WebSubHub(options) {
     })
   }
 
-  this.httpClient = Got
+  this.httpClient = Got.extend({
+    timeout: this.options.timeout,
+    retry: this.options.retry
+  })
   this.hyperid = Hyperid()
   this._registerHttpHandler()
 }
@@ -205,8 +208,6 @@ WebSubHub.prototype._verifyIntent = async function(
   let response
   try {
     response = await this.httpClient.get(callbackUrl, {
-      timeout: this.options.timeout,
-      retries: this.options.retries,
       json: true,
       query: {
         ...callbackQuery,
@@ -266,16 +267,14 @@ WebSubHub.prototype._distributeContentHTTP = async function(
 }
 
 WebSubHub.prototype._sendContentHTTP = async function(sub, stream, headers) {
-  const output = stream.pipe(
-    this.httpClient.stream.post(sub.callbackUrl, {
-      query: sub.callbackQuery,
-      retries: this.options.retries,
-      headers,
-      timeout: this.options.timeout
-    })
-  )
-
   try {
+    const response = this.httpClient.stream.post(sub.callbackUrl, {
+      query: sub.callbackQuery,
+      headers
+    })
+
+    const output = stream.pipe(response)
+
     await PEvent(output, 'response')
   } catch (err) {
     this.log.error(
@@ -386,14 +385,9 @@ WebSubHub.prototype._fetchTopicContent = async function(sub, stream = false) {
   try {
     response = await this.httpClient.get(sub.topic, {
       stream,
-      retries: this.options.retries,
       headers,
-      timeout: this.options.timeout
+      throwHttpErrors: false
     })
-
-    if (stream) {
-      await PEvent(response, 'response')
-    }
   } catch (err) {
     this.log.error(err, `from topic '%s' could not be fetched`, sub.topic)
     throw Boom.notFound('from topic could not be fetched')

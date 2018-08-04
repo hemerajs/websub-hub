@@ -24,6 +24,7 @@ describe('Basic Subscription', function() {
   before(function() {
     hub = Hub({
       logLevel: 'debug',
+      timeout: 500,
       mongo: {
         url: mongoInMemory.getMongouri('hub')
       }
@@ -95,7 +96,7 @@ describe('Basic Subscription', function() {
     verifyIntentMock.done()
   })
 
-  it.skip('Should retry when subscription callback respond with e.g statusCode 502', async function() {
+  it('Should retry when subscription callback respond with e.g statusCode 502', async function() {
     const callbackUrl = 'http://127.0.0.1:3001'
     const createSubscriptionBody = {
       'hub.callback': callbackUrl,
