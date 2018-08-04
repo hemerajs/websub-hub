@@ -1,6 +1,6 @@
 {
   "name": "websub-hub-publisher",
-  "version": "0.0.8",
+  "version": "0.0.9",
   "description": "WebSub Hub publisher for NodeJs",
   "main": "./index.js",
   "repository": {
