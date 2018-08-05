@@ -61,6 +61,11 @@ WebSub provides a common mechanism for communication between publishers of any k
 
 https://w3c.github.io/websub/
 
+## Useful links
+
+* https://documentation.superfeedr.com/
+* https://websub.rocks/
+
 ## Getting started
 
 ```
